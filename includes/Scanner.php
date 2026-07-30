@@ -251,11 +251,13 @@ class Scanner {
             return null;
         }
 
+        $subject = strtolower($subject);
         $best_match = null;
         $best_len = 0;
 
         foreach (self::$indonesian_areas as $area) {
-            if (str_contains($subject, $area)) {
+            $pattern = '/(?:^|[\s\/_\-\.])' . preg_quote($area, '/') . '(?:$|[\s\/_\-\.])/i';
+            if (preg_match($pattern, $subject)) {
                 $len = strlen($area);
                 if ($len > $best_len) {
                     $best_len = $len;

@@ -12,6 +12,20 @@ if (!defined('ABSPATH')) {
 class CTA_Resolver {
 
     /**
+     * Get active cache version string for transient key prefixing
+     *
+     * @return string
+     */
+    public static function get_cache_version(): string {
+        $ver = get_option('dynamic_cta_cache_version', '');
+        if (empty($ver)) {
+            $ver = (string) time();
+            update_option('dynamic_cta_cache_version', $ver, false);
+        }
+        return $ver;
+    }
+
+    /**
      * Resolves the Dynamic CTA URL for a given post or current page request.
      *
      * @param int|null $post_id
@@ -46,7 +60,8 @@ class CTA_Resolver {
             }
         }
 
-        $transient_key = 'dcta_url_' . md5($current_path . '_' . $post_id);
+        $cache_ver = self::get_cache_version();
+        $transient_key = 'dcta_' . $cache_ver . '_' . md5($current_path . '_' . (int)$post_id);
 
         if ($enable_cache === 'yes') {
             $cached_url = get_transient($transient_key);
@@ -149,7 +164,7 @@ class CTA_Resolver {
     }
 
     /**
-     * Match custom mappings against subject string
+     * Match custom mappings against subject string with word boundary regex
      *
      * @param string $subject
      * @param array $mappings
@@ -170,7 +185,9 @@ class CTA_Resolver {
                 continue;
             }
 
-            if (str_contains($subject, $keyword)) {
+            // Word boundary regex matching
+            $pattern = '/(?:^|[\s\/_\-\.])' . preg_quote($keyword, '/') . '(?:$|[\s\/_\-\.])/i';
+            if (preg_match($pattern, $subject)) {
                 $len = strlen($keyword);
                 if ($len > $best_len) {
                     $best_len = $len;
@@ -188,7 +205,8 @@ class CTA_Resolver {
      * @return array
      */
     public static function get_all_mappings(): array {
-        $transient_key = 'dcta_all_mappings';
+        $cache_ver = self::get_cache_version();
+        $transient_key = 'dcta_' . $cache_ver . '_all_map';
         $mappings = get_transient($transient_key);
 
         if ($mappings === false) {
@@ -209,16 +227,17 @@ class CTA_Resolver {
     }
 
     /**
-     * Clear CTA Transients Cache (Compatible with Redis / Memcached / DB transients)
+     * Clear CTA Transients Cache across MySQL & Object Cache (Redis/Memcached)
      */
     public static function clear_cache(): void {
-        delete_transient('dcta_all_mappings');
+        update_option('dynamic_cta_cache_version', (string) time(), false);
 
         global $wpdb;
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_dcta_url_%' OR option_name LIKE '_transient_timeout_dcta_url_%'");
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_dcta_%' OR option_name LIKE '_transient_timeout_dcta_%'");
 
         if (function_exists('wp_cache_flush')) {
             wp_cache_flush();
         }
     }
 }
+

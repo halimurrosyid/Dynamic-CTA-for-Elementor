@@ -19,6 +19,12 @@ class Settings_Page {
     public static function init_hooks(): void {
         add_action('admin_init', [self::class, 'register_settings']);
         add_action('admin_post_dynamic_cta_clear_cache', [self::class, 'handle_clear_cache']);
+        
+        // Auto-purge transient cache when options are saved/updated
+        add_action('update_option_dynamic_cta_default_url', [CTA_Resolver::class, 'clear_cache']);
+        add_action('update_option_dynamic_cta_open_link', [CTA_Resolver::class, 'clear_cache']);
+        add_action('update_option_dynamic_cta_enable_cache', [CTA_Resolver::class, 'clear_cache']);
+        add_action('update_option_dynamic_cta_cache_lifetime', [CTA_Resolver::class, 'clear_cache']);
     }
 
     /**

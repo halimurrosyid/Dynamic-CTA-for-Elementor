@@ -103,8 +103,10 @@ class Area_Mapping_Table extends \WP_List_Table {
             $where = $wpdb->prepare(" WHERE keyword LIKE %s OR area_name LIKE %s OR source_url LIKE %s OR destination_url LIKE %s ", $like, $like, $like, $like);
         }
 
-        $orderby = isset($_REQUEST['orderby']) ? sanitize_sql_orderby($_REQUEST['orderby']) : 'updated_at';
-        $order   = (isset($_REQUEST['order']) && strtolower($_REQUEST['order']) === 'asc') ? 'ASC' : 'DESC';
+        $allowed_columns = ['keyword', 'area_name', 'source_url', 'destination_url', 'updated_at', 'id'];
+        $orderby_req     = isset($_REQUEST['orderby']) ? sanitize_key($_REQUEST['orderby']) : 'updated_at';
+        $orderby         = in_array($orderby_req, $allowed_columns, true) ? $orderby_req : 'updated_at';
+        $order           = (isset($_REQUEST['order']) && strtolower($_REQUEST['order']) === 'asc') ? 'ASC' : 'DESC';
 
         $total_items = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} {$where}");
 

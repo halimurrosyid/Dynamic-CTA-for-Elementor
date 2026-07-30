@@ -35,7 +35,15 @@
 
                 // Extract area from URL path if present
                 var areaName = '';
-                var matches = href.match(/\/iconnet\/([^\/]+)\/?/);
+                var basePath = dynamic_cta_params.base_path || '';
+                var pathRegex;
+                if (basePath) {
+                    var escapedPath = basePath.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                    pathRegex = new RegExp('\\/' + escapedPath + '\\/([^\\/]+)\\/?', 'i');
+                } else {
+                    pathRegex = /\/([^\/]+)\/?$/;
+                }
+                var matches = href.match(pathRegex);
                 if (matches && matches[1]) {
                     areaName = matches[1];
                 }

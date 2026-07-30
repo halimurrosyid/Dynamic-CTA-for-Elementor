@@ -110,12 +110,15 @@ class Plugin {
         );
 
         $target_attr = get_option('dynamic_cta_open_link', '_self');
+        $default_url = get_option('dynamic_cta_default_url', 'https://jasawifi.com/iconnet/');
+        $base_path   = trim(wp_parse_url($default_url, PHP_URL_PATH) ?? '', '/');
 
         wp_localize_script('dynamic-cta-tracker', 'dynamic_cta_params', [
             'ajax_url'    => admin_url('admin-ajax.php'),
             'post_id'     => get_queried_object_id() ? get_queried_object_id() : get_the_ID(),
             'open_link'   => $target_attr,
-            'default_url' => get_option('dynamic_cta_default_url', 'https://jasawifi.com/iconnet/'),
+            'default_url' => $default_url,
+            'base_path'   => $base_path,
         ]);
     }
 

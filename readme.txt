@@ -5,7 +5,7 @@ Tags: elementor, dynamic tag, cta, migration, popup link, redis cache
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,12 @@ Universal area-based CTA link migration plugin for Elementor Pro. Dynamically ro
 "Dynamic CTA for Elementor" is a universal WordPress plugin created by **Mujaddid Halimurrosyid** ([indahweb.com](https://indahweb.com/)) designed to seamlessly migrate traffic from legacy articles to targeted area landing pages using **ONLY ONE Elementor Popup**.
 
 == Changelog ==
+
+= 1.0.7 =
+* Fixed Redis & Memcached Object Cache transient invalidation with dynamic cache versioning.
+* Fixed Default Base URL setting save auto-purge cache trigger.
+* Added Regex Word Boundary area detection to prevent false positive matching on short keywords.
+* Made frontend JS tracker regex dynamic based on custom base URL path.
 
 = 1.0.6 =
 * Added Live Preview Mode support inside Elementor Editor.
