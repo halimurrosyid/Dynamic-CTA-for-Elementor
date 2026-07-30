@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Admin_Menu
- * Registers Top-level Admin Menu, Submenus, Enqueues Admin Assets, and handles Admin AJAX routing.
+ * Registers Top-level Admin Menu, Submenus, Plugin Action Links, Enqueues Admin Assets, and handles Admin AJAX routing.
  */
 class Admin_Menu {
 
@@ -17,6 +17,21 @@ class Admin_Menu {
     public function init(): void {
         add_action('admin_menu', [$this, 'register_menu_pages']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+        add_filter('plugin_action_links_' . DYNAMIC_CTA_BASENAME, [$this, 'add_plugin_action_links']);
+    }
+
+    /**
+     * Add direct Settings & Area Mapping links on WP Plugins page list
+     *
+     * @param array $links
+     * @return array
+     */
+    public function add_plugin_action_links(array $links): array {
+        $mapping_link  = '<a href="' . esc_url(admin_url('admin.php?page=dynamic-cta')) . '"><strong>' . esc_html__('Area Mapping', 'dynamic-cta-elementor') . '</strong></a>';
+        $settings_link = '<a href="' . esc_url(admin_url('admin.php?page=dynamic-cta-settings')) . '">' . esc_html__('Settings', 'dynamic-cta-elementor') . '</a>';
+        
+        array_unshift($links, $mapping_link, $settings_link);
+        return $links;
     }
 
     /**
