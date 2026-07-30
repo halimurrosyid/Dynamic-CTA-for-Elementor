@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Scanner
- * Universal & High-Accuracy Area Scanner supporting XML Sitemaps, WP Posts, and Taxonomies.
+ * Universal & High-Accuracy Area Scanner supporting Destination Site XML Sitemaps, WP Posts, and Taxonomies.
  */
 class Scanner {
 
@@ -69,22 +69,86 @@ class Scanner {
     ];
 
     /**
-     * Scan XML Sitemap URL and extract area mappings
+     * Import Destination URLs directly from Destination Website's XML Sitemap
      *
      * @param string $sitemap_url
      * @return array
      */
-    public static function scan_sitemap(string $sitemap_url): array {
+    public static function import_destination_sitemap(string $sitemap_url): array {
         if (empty($sitemap_url) || !filter_var($sitemap_url, FILTER_VALIDATE_URL)) {
-            return ['error' => __('Invalid Sitemap URL provided.', 'dynamic-cta-elementor')];
+            return ['error' => __('Invalid Destination Sitemap URL provided.', 'dynamic-cta-elementor')];
         }
 
         $urls = self::extract_urls_from_sitemap($sitemap_url);
         if (empty($urls)) {
-            return ['error' => __('No URLs could be retrieved from the specified Sitemap.', 'dynamic-cta-elementor')];
+            return ['error' => __('No destination URLs could be retrieved from the specified Sitemap URL.', 'dynamic-cta-elementor')];
         }
 
-        return self::process_url_list($urls);
+        global $wpdb;
+        $table = DB::get_mappings_table();
+
+        $existing_keywords = $wpdb->get_col("SELECT keyword FROM {$table}");
+        if (!is_array($existing_keywords)) {
+            $existing_keywords = [];
+        }
+        $existing_map = array_fill_keys(array_map('strtolower', $existing_keywords), true);
+
+        $total_scanned = count($urls);
+        $inserted_count = 0;
+        $updated_count = 0;
+
+        foreach ($urls as $destination_url) {
+            $destination_url = esc_url_raw(trim($destination_url));
+            $path = trim(wp_parse_url($destination_url, PHP_URL_PATH) ?? '', '/');
+            if (empty($path)) {
+                continue;
+            }
+
+            $matched_keyword = self::detect_area_from_string($path);
+            if (!$matched_keyword) {
+                continue;
+            }
+
+            $keyword = sanitize_key($matched_keyword);
+            $area_name = ucwords(str_replace('-', ' ', $keyword));
+
+            if (isset($existing_map[$keyword])) {
+                $wpdb->update(
+                    $table,
+                    [
+                        'area_name'       => $area_name,
+                        'destination_url' => $destination_url,
+                    ],
+                    ['keyword' => $keyword],
+                    ['%s', '%s'],
+                    ['%s']
+                );
+                $updated_count++;
+            } else {
+                $result = $wpdb->insert(
+                    $table,
+                    [
+                        'keyword'         => $keyword,
+                        'area_name'       => $area_name,
+                        'destination_url' => $destination_url,
+                    ],
+                    ['%s', '%s', '%s']
+                );
+
+                if ($result) {
+                    $inserted_count++;
+                    $existing_map[$keyword] = true;
+                }
+            }
+        }
+
+        CTA_Resolver::clear_cache();
+
+        return [
+            'total_scanned' => $total_scanned,
+            'inserted'      => $inserted_count,
+            'updated'       => $updated_count,
+        ];
     }
 
     /**
@@ -116,11 +180,9 @@ class Scanner {
 
         $extracted_urls = [];
 
-        // Parse XML using SimpleXML
         libxml_use_internal_errors(true);
         $xml = simplexml_load_string($xml_content);
         if ($xml === false) {
-            // Regex fallback if XML parsing fails
             preg_match_all('/<loc>(https?:\/\/[^<]+)<\/loc>/i', $xml_content, $matches);
             if (!empty($matches[1])) {
                 return array_unique($matches[1]);
@@ -128,7 +190,6 @@ class Scanner {
             return [];
         }
 
-        // Handle Sitemap Index (<sitemapindex>)
         if ($xml->getName() === 'sitemapindex') {
             foreach ($xml->sitemap as $sub_sitemap) {
                 $sub_url = (string) $sub_sitemap->loc;
@@ -137,9 +198,7 @@ class Scanner {
                     $extracted_urls = array_merge($extracted_urls, $child_urls);
                 }
             }
-        } 
-        // Handle URLset (<urlset>)
-        elseif ($xml->getName() === 'urlset') {
+        } elseif ($xml->getName() === 'urlset') {
             foreach ($xml->url as $url_entry) {
                 $loc = (string) $url_entry->loc;
                 if (!empty($loc)) {
@@ -173,7 +232,6 @@ class Scanner {
             }
         }
 
-        // Also check category slugs & names
         $categories = get_categories(['hide_empty' => false]);
         if (!is_wp_error($categories)) {
             foreach ($categories as $cat) {
@@ -200,7 +258,7 @@ class Scanner {
         }
         $existing_map = array_fill_keys(array_map('strtolower', $existing_keywords), true);
 
-        $base_url = get_option('dynamic_cta_default_url', 'https://your-destination-site.com/target-path/');
+        $base_url = get_option('dynamic_cta_default_url', 'https://jasawifi.com/iconnet/');
         $base_url = rtrim($base_url, '/') . '/';
 
         $total_scanned = count($items);
@@ -213,7 +271,6 @@ class Scanner {
                 continue;
             }
 
-            // Extract valid area keyword STRICTLY from dictionary
             $matched_keyword = self::detect_area_from_string($slug);
 
             if (!$matched_keyword) {
@@ -227,7 +284,6 @@ class Scanner {
                 continue;
             }
 
-            // Format Area Name (e.g. bandung-barat -> Bandung Barat)
             $area_name = ucwords(str_replace('-', ' ', $keyword));
             $destination_url = $base_url . $keyword . '/';
 

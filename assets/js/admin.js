@@ -154,6 +154,44 @@
             });
         });
 
+        // Open Destination Sitemap Modal
+        $('.btn-open-dest-sitemap-modal').on('click', function() {
+            $('#modal-dest-sitemap').fadeIn('fast');
+        });
+
+        // Submit Destination Sitemap Import AJAX
+        $('.btn-submit-dest-sitemap').on('click', function() {
+            var $btn = $(this);
+            var sitemapUrl = $('#field-dest-sitemap-url').val();
+
+            if (!sitemapUrl) {
+                alert('Please enter a valid Destination XML Sitemap URL.');
+                return;
+            }
+
+            $btn.prop('disabled', true).text('Fetching Sitemap...');
+
+            $.post(dynamic_cta_admin.ajax_url, {
+                action: 'dynamic_cta_import_destination_sitemap',
+                nonce: dynamic_cta_admin.nonce,
+                sitemap_url: sitemapUrl
+            }, function(res) {
+                $btn.prop('disabled', false).text('Fetch & Import URLs');
+                if (res.success) {
+                    $('#modal-dest-sitemap').fadeOut('fast');
+                    showNotice(res.data.message, 'success');
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    alert(res.data.message || 'Importing Destination Sitemap failed.');
+                }
+            }).fail(function() {
+                $btn.prop('disabled', false).text('Fetch & Import URLs');
+                alert('Destination Sitemap request failed.');
+            });
+        });
+
         // Open Import CSV Modal
         $('.btn-open-import-modal').on('click', function() {
             $('#modal-import-csv').fadeIn('fast');

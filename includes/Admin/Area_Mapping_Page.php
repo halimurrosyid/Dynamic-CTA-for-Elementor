@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Area_Mapping_Page
- * Renders Area Mapping Admin Interface with 1-click internal Auto Detect and Clear All features.
+ * Renders Area Mapping Admin Interface with Destination Sitemap Importer, Auto Detect, and Clear All features.
  */
 class Area_Mapping_Page {
 
@@ -23,6 +23,7 @@ class Area_Mapping_Page {
         add_action('wp_ajax_dynamic_cta_delete_mapping', [self::class, 'ajax_delete_mapping']);
         add_action('wp_ajax_dynamic_cta_clear_all_mappings', [self::class, 'ajax_clear_all_mappings']);
         add_action('wp_ajax_dynamic_cta_auto_detect', [self::class, 'ajax_auto_detect']);
+        add_action('wp_ajax_dynamic_cta_import_destination_sitemap', [self::class, 'ajax_import_destination_sitemap']);
         add_action('wp_ajax_dynamic_cta_import_csv', [self::class, 'ajax_import_csv']);
         add_action('admin_init', [self::class, 'handle_csv_export']);
         add_action('admin_init', [self::class, 'handle_bulk_actions']);
@@ -57,6 +58,9 @@ class Area_Mapping_Page {
                 <div class="toolbar-left">
                     <button type="button" class="button button-primary btn-open-add-modal">
                         <span class="dashicons dashicons-plus-alt2"></span> <?php esc_html_e('Add New Mapping', 'dynamic-cta-elementor'); ?>
+                    </button>
+                    <button type="button" class="button button-secondary btn-open-dest-sitemap-modal">
+                        <span class="dashicons dashicons-sitemap"></span> <?php esc_html_e('Import Destination Sitemap', 'dynamic-cta-elementor'); ?>
                     </button>
                     <button type="button" class="button button-secondary btn-run-auto-detect">
                         <span class="dashicons dashicons-update"></span> <?php esc_html_e('Generate Mapping (Auto Detect)', 'dynamic-cta-elementor'); ?>
@@ -118,6 +122,31 @@ class Area_Mapping_Page {
                 <div class="dcta-modal-footer">
                     <button type="button" class="button button-secondary dcta-modal-close"><?php esc_html_e('Cancel', 'dynamic-cta-elementor'); ?></button>
                     <button type="button" class="button button-primary btn-save-mapping-submit"><?php esc_html_e('Save Mapping', 'dynamic-cta-elementor'); ?></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import Destination Sitemap Modal -->
+        <div id="modal-dest-sitemap" class="dcta-modal-overlay" style="display:none;">
+            <div class="dcta-modal-container">
+                <div class="dcta-modal-header">
+                    <h3><?php esc_html_e('Import Destination Website Sitemap', 'dynamic-cta-elementor'); ?></h3>
+                    <button type="button" class="dcta-modal-close">&times;</button>
+                </div>
+                <div class="dcta-modal-body">
+                    <form id="dcta-dest-sitemap-form">
+                        <div class="dcta-form-group">
+                            <label for="field-dest-sitemap-url"><strong><?php esc_html_e('Destination Sitemap XML URL', 'dynamic-cta-elementor'); ?> *</strong></label>
+                            <input type="url" name="dest_sitemap_url" id="field-dest-sitemap-url" class="large-text" placeholder="e.g. https://jasawifi.com/post-sitemap.xml" required>
+                            <p class="description">
+                                💡 <?php esc_html_e('Paste the XML sitemap URL of your NEW destination website (e.g. https://jasawifi.com/post-sitemap.xml). The plugin will automatically extract all landing URLs and match keywords instantly!', 'dynamic-cta-elementor'); ?>
+                            </p>
+                        </div>
+                    </form>
+                </div>
+                <div class="dcta-modal-footer">
+                    <button type="button" class="button button-secondary dcta-modal-close"><?php esc_html_e('Cancel', 'dynamic-cta-elementor'); ?></button>
+                    <button type="button" class="button button-primary btn-submit-dest-sitemap"><?php esc_html_e('Fetch & Import URLs', 'dynamic-cta-elementor'); ?></button>
                 </div>
             </div>
         </div>
@@ -297,6 +326,37 @@ class Area_Mapping_Page {
             $result['total_scanned'],
             $result['inserted'],
             $result['skipped']
+        );
+
+        wp_send_json_success(['message' => $message]);
+    }
+
+    /**
+     * AJAX Import Destination Sitemap
+     */
+    public static function ajax_import_destination_sitemap(): void {
+        check_ajax_referer('dynamic_cta_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Unauthorized permission.', 'dynamic-cta-elementor')]);
+        }
+
+        $sitemap_url = isset($_POST['sitemap_url']) ? esc_url_raw($_POST['sitemap_url']) : '';
+        if (empty($sitemap_url)) {
+            wp_send_json_error(['message' => __('Please enter a valid Destination Sitemap URL.', 'dynamic-cta-elementor')]);
+        }
+
+        $result = Scanner::import_destination_sitemap($sitemap_url);
+
+        if (isset($result['error'])) {
+            wp_send_json_error(['message' => $result['error']]);
+        }
+
+        $message = sprintf(
+            __('Destination Sitemap Import Complete! Total URLs scanned: %d. New mappings inserted: %d. Updated existing: %d.', 'dynamic-cta-elementor'),
+            $result['total_scanned'],
+            $result['inserted'],
+            $result['updated']
         );
 
         wp_send_json_success(['message' => $message]);

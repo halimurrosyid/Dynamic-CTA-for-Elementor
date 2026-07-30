@@ -1,15 +1,15 @@
 === Dynamic CTA for Elementor ===
 Contributors: halimurrosyid
 Donate link: https://indahweb.com/
-Tags: elementor, dynamic tag, cta, migration, popup link, zero configuration
+Tags: elementor, dynamic tag, cta, migration, popup link, destination sitemap importer
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Universal area-based CTA link migration plugin for Elementor Pro. Dynamically routes traffic based on URL path segments, post slug, category, or tag with GitHub automatic 1-click updates.
+Universal area-based CTA link migration plugin for Elementor Pro. Dynamically routes traffic based on URL path segments, post slug, category, or tag with Destination Website Sitemap Importer and GitHub automatic 1-click updates.
 
 == Description ==
 
@@ -17,9 +17,11 @@ Universal area-based CTA link migration plugin for Elementor Pro. Dynamically ro
 
 == Changelog ==
 
+= 1.0.4 =
+* Added "Import Destination Sitemap" feature: Paste your NEW destination site's XML sitemap URL (e.g. `https://jasawifi.com/post-sitemap.xml`) to automatically import and map all landing page URLs instantly without manual typing!
+
 = 1.0.3 =
-* Simplified user experience: Removed redundant XML sitemap modal input. 1-click internal Auto Detect scan directly queries WordPress database.
-* Enhanced Destination Base URL configuration in Settings.
+* Simplified user experience: 1-click internal Auto Detect scan directly queries WordPress database.
 
 = 1.0.2 =
 * Added Multi-Layer Smart URL Path Segment Resolver (e.g. `/promo/bandung/` automatically maps to `https://jasawifi.com/iconnet/bandung/`).
