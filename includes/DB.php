@@ -81,7 +81,8 @@ class DB {
             user_agent text DEFAULT NULL,
             PRIMARY KEY  (id),
             KEY post_id (post_id),
-            KEY click_date (click_date)
+            KEY click_date (click_date),
+            KEY area_name (area_name)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';

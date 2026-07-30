@@ -7,12 +7,12 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Stats
- * Click tracking recorder and statistics analyzer.
+ * Click tracking recorder and statistics analyzer with multi-day comparison and automatic light log optimization.
  */
 class Stats {
 
     /**
-     * Record a click event
+     * Record a click event with deduplication and auto-pruning
      *
      * @param array $data
      * @return bool
@@ -22,6 +22,19 @@ class Stats {
         $table = DB::get_clicks_table();
 
         $post_id = isset($data['post_id']) ? (int) $data['post_id'] : 0;
+        $ip_address = self::get_client_ip();
+
+        // Anti-Spam / Deduplication: Prevent duplicate log entries within 5 seconds for same IP and post
+        $recent = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table} WHERE ip_address = %s AND post_id = %d AND click_date >= NOW() - INTERVAL 5 SECOND LIMIT 1",
+            $ip_address,
+            $post_id
+        ));
+
+        if ($recent) {
+            return false;
+        }
+
         $post_title = '';
         if ($post_id > 0) {
             $post = get_post($post_id);
@@ -33,7 +46,6 @@ class Stats {
         $area_name       = isset($data['area_name']) ? sanitize_text_field($data['area_name']) : '';
         $destination_url = isset($data['destination_url']) ? esc_url_raw($data['destination_url']) : '';
         $referer         = isset($data['referer']) ? esc_url_raw($data['referer']) : '';
-        $ip_address      = self::get_client_ip();
         $user_agent      = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field($_SERVER['HTTP_USER_AGENT']) : '';
 
         $inserted = $wpdb->insert(
@@ -51,39 +63,207 @@ class Stats {
             ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
+        // Lightweight Auto-Pruning: 1 in 50 chance to prune logs older than retention period (default 60 days)
+        if ($inserted && rand(1, 50) === 1) {
+            self::prune_old_logs(60);
+        }
+
         return (bool) $inserted;
     }
 
     /**
-     * Get summary metrics for admin dashboard
+     * Get multi-day comparison metrics for dashboard
      *
      * @return array
      */
-    public static function get_summary(): array {
+    public static function get_comparison_summary(): array {
         global $wpdb;
         $table = DB::get_clicks_table();
 
         // Total Clicks
         $total_clicks = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
 
-        // Today's Clicks
+        // Today vs Yesterday
         $today = current_time('Y-m-d');
+        $yesterday = date('Y-m-d', strtotime('-1 day', strtotime($today)));
+
         $today_clicks = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE DATE(click_date) = %s", $today));
+        $yesterday_clicks = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE DATE(click_date) = %s", $yesterday));
 
-        // Top Area
-        $top_area_row = $wpdb->get_row("SELECT area_name, COUNT(*) as cnt FROM {$table} WHERE area_name IS NOT NULL AND area_name != '' GROUP BY area_name ORDER BY cnt DESC LIMIT 1");
-        $top_area = $top_area_row ? $top_area_row->area_name . ' (' . $top_area_row->cnt . ')' : '-';
+        $day_growth = 0;
+        if ($yesterday_clicks > 0) {
+            $day_growth = round((($today_clicks - $yesterday_clicks) / $yesterday_clicks) * 100, 1);
+        } elseif ($today_clicks > 0) {
+            $day_growth = 100;
+        }
 
-        // Top Page/Post
-        $top_post_row = $wpdb->get_row("SELECT post_title, COUNT(*) as cnt FROM {$table} WHERE post_title IS NOT NULL AND post_title != '' GROUP BY post_title ORDER BY cnt DESC LIMIT 1");
-        $top_post = $top_post_row ? $top_post_row->post_title . ' (' . $top_post_row->cnt . ')' : '-';
+        // Last 7 Days vs Prior 7 Days
+        $last_7_start = date('Y-m-d', strtotime('-6 days', strtotime($today)));
+        $prev_7_start = date('Y-m-d', strtotime('-13 days', strtotime($today)));
+        $prev_7_end   = date('Y-m-d', strtotime('-7 days', strtotime($today)));
+
+        $last_7_clicks = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s", $last_7_start, $today));
+        $prev_7_clicks = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s", $prev_7_start, $prev_7_end));
+
+        $week_growth = 0;
+        if ($prev_7_clicks > 0) {
+            $week_growth = round((($last_7_clicks - $prev_7_clicks) / $prev_7_clicks) * 100, 1);
+        } elseif ($last_7_clicks > 0) {
+            $week_growth = 100;
+        }
+
+        // Last 30 Days
+        $last_30_start = date('Y-m-d', strtotime('-29 days', strtotime($today)));
+        $last_30_clicks = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s", $last_30_start, $today));
 
         return [
-            'total_clicks' => $total_clicks,
-            'today_clicks' => $today_clicks,
-            'top_area'     => $top_area,
-            'top_post'     => $top_post,
+            'total_clicks'     => $total_clicks,
+            'today_clicks'     => $today_clicks,
+            'yesterday_clicks' => $yesterday_clicks,
+            'day_growth'       => $day_growth,
+            'last_7_clicks'    => $last_7_clicks,
+            'prev_7_clicks'    => $prev_7_clicks,
+            'week_growth'      => $week_growth,
+            'last_30_clicks'   => $last_30_clicks,
         ];
+    }
+
+    /**
+     * Get daily breakdown for trend chart & comparison table
+     *
+     * @param int $days
+     * @return array
+     */
+    public static function get_daily_trends(int $days = 7): array {
+        global $wpdb;
+        $table = DB::get_clicks_table();
+
+        $days = in_array($days, [7, 14, 30], true) ? $days : 7;
+        $today = current_time('Y-m-d');
+        $start_date = date('Y-m-d', strtotime('-' . ($days - 1) . ' days', strtotime($today)));
+
+        $raw_results = $wpdb->get_results($wpdb->prepare(
+            "SELECT DATE(click_date) as cdate, COUNT(*) as cnt FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s GROUP BY DATE(click_date) ORDER BY cdate ASC",
+            $start_date,
+            $today
+        ), OBJECT_K);
+
+        $trends = [];
+        $max_clicks = 1;
+
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime('-' . $i . ' days', strtotime($today)));
+            $formatted_date = date_i18n('d M', strtotime($date));
+            $day_name = date_i18n('D', strtotime($date));
+            $clicks = isset($raw_results[$date]) ? (int) $raw_results[$date]->cnt : 0;
+
+            if ($clicks > $max_clicks) {
+                $max_clicks = $clicks;
+            }
+
+            $trends[] = [
+                'date'           => $date,
+                'formatted_date' => $formatted_date,
+                'day_name'       => $day_name,
+                'clicks'         => $clicks,
+            ];
+        }
+
+        return [
+            'trends'     => $trends,
+            'max_clicks' => $max_clicks,
+        ];
+    }
+
+    /**
+     * Get top performing areas
+     *
+     * @param int $limit
+     * @param int $days
+     * @return array
+     */
+    public static function get_top_areas(int $limit = 5, int $days = 30): array {
+        global $wpdb;
+        $table = DB::get_clicks_table();
+
+        $today = current_time('Y-m-d');
+        $start_date = date('Y-m-d', strtotime('-' . ($days - 1) . ' days', strtotime($today)));
+
+        $total_in_period = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s",
+            $start_date,
+            $today
+        ));
+
+        $results = $wpdb->get_results($wpdb->prepare(
+            "SELECT area_name, COUNT(*) as cnt FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s AND area_name IS NOT NULL AND area_name != '' GROUP BY area_name ORDER BY cnt DESC LIMIT %d",
+            $start_date,
+            $today,
+            $limit
+        ));
+
+        if (!is_array($results)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($results as $row) {
+            $cnt = (int) $row->cnt;
+            $percent = $total_in_period > 0 ? round(($cnt / $total_in_period) * 100, 1) : 0;
+            $items[] = [
+                'area_name' => $row->area_name,
+                'clicks'    => $cnt,
+                'percent'   => $percent,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Get top performing articles/posts
+     *
+     * @param int $limit
+     * @param int $days
+     * @return array
+     */
+    public static function get_top_posts(int $limit = 5, int $days = 30): array {
+        global $wpdb;
+        $table = DB::get_clicks_table();
+
+        $today = current_time('Y-m-d');
+        $start_date = date('Y-m-d', strtotime('-' . ($days - 1) . ' days', strtotime($today)));
+
+        $total_in_period = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s",
+            $start_date,
+            $today
+        ));
+
+        $results = $wpdb->get_results($wpdb->prepare(
+            "SELECT post_id, post_title, COUNT(*) as cnt FROM {$table} WHERE DATE(click_date) BETWEEN %s AND %s AND post_title IS NOT NULL AND post_title != '' GROUP BY post_id, post_title ORDER BY cnt DESC LIMIT %d",
+            $start_date,
+            $today,
+            $limit
+        ));
+
+        if (!is_array($results)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($results as $row) {
+            $cnt = (int) $row->cnt;
+            $percent = $total_in_period > 0 ? round(($cnt / $total_in_period) * 100, 1) : 0;
+            $items[] = [
+                'post_id'    => (int) $row->post_id,
+                'post_title' => $row->post_title,
+                'clicks'     => $cnt,
+                'percent'    => $percent,
+            ];
+        }
+
+        return $items;
     }
 
     /**
@@ -111,6 +291,19 @@ class Stats {
             'total'   => $total,
             'results' => is_array($results) ? $results : [],
         ];
+    }
+
+    /**
+     * Prune logs older than specified days to keep DB table ultra lightweight
+     *
+     * @param int $days
+     * @return int Number of deleted rows
+     */
+    public static function prune_old_logs(int $days = 60): int {
+        global $wpdb;
+        $table = DB::get_clicks_table();
+        $cutoff_date = date('Y-m-d 00:00:00', strtotime('-' . (int)$days . ' days', current_time('timestamp')));
+        return (int) $wpdb->query($wpdb->prepare("DELETE FROM {$table} WHERE click_date < %s", $cutoff_date));
     }
 
     /**
@@ -142,3 +335,4 @@ class Stats {
         return sanitize_text_field(trim($ip));
     }
 }
+

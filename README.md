@@ -1,6 +1,6 @@
 # Dynamic CTA for Elementor
 
-![Version](https://img.shields.io/badge/version-1.0.7-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.8-blue.svg)
 ![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)
 ![PHP](https://img.shields.io/badge/php-8.1%2B-purple.svg)
 ![Elementor](https://img.shields.io/badge/elementor-pro-red.svg)

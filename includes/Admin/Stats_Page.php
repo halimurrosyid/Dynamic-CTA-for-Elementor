@@ -42,18 +42,30 @@ class Stats_Page {
     /**
      * Render Statistics Page
      */
+    /**
+     * Render Statistics Page
+     */
     public static function render(): void {
         if (!current_user_can('manage_options')) {
             wp_die(__('You do not have sufficient permissions to access this page.', 'dynamic-cta-elementor'));
         }
 
-        $summary = Stats::get_summary();
+        $summary = Stats::get_comparison_summary();
+        $range   = isset($_GET['range']) ? (int) $_GET['range'] : 7;
+        if (!in_array($range, [7, 14, 30], true)) {
+            $range = 7;
+        }
+
+        $daily_data = Stats::get_daily_trends($range);
+        $top_areas  = Stats::get_top_areas(5, $range);
+        $top_posts  = Stats::get_top_posts(5, $range);
+
         $paged   = isset($_GET['paged']) ? max(1, (int) $_GET['paged']) : 1;
         $search  = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
         $limit   = 20;
         $offset  = ($paged - 1) * $limit;
 
-        $logs_data = Stats::get_clicks($limit, $offset, $search);
+        $logs_data   = Stats::get_clicks($limit, $offset, $search);
         $total_items = $logs_data['total'];
         $total_pages = ceil($total_items / $limit);
         $clicks      = $logs_data['results'];
@@ -61,7 +73,7 @@ class Stats_Page {
         <div class="wrap dynamic-cta-wrap">
             <h1>
                 <span class="dashicons dashicons-chart-bar"></span>
-                <?php esc_html_e('Dynamic CTA - Click Statistics', 'dynamic-cta-elementor'); ?>
+                <?php esc_html_e('Dynamic CTA - Click Statistics & Analytics', 'dynamic-cta-elementor'); ?>
             </h1>
 
             <hr class="wp-header-end">
@@ -72,49 +84,182 @@ class Stats_Page {
                 </div>
             <?php endif; ?>
 
-            <!-- Metrics Summary Grid -->
+            <!-- Metrics Comparison Summary Grid -->
             <div class="dcta-stats-grid">
-                <div class="dcta-metric-card">
-                    <div class="metric-icon"><span class="dashicons dashicons-chart-line"></span></div>
-                    <div class="metric-data">
-                        <div class="metric-value"><?php echo esc_html(number_format_i18n($summary['total_clicks'])); ?></div>
-                        <div class="metric-label"><?php esc_html_e('Total Clicks', 'dynamic-cta-elementor'); ?></div>
-                    </div>
-                </div>
-
+                <!-- Today's Clicks & Day Growth -->
                 <div class="dcta-metric-card">
                     <div class="metric-icon"><span class="dashicons dashicons-calendar-alt"></span></div>
                     <div class="metric-data">
                         <div class="metric-value"><?php echo esc_html(number_format_i18n($summary['today_clicks'])); ?></div>
                         <div class="metric-label"><?php esc_html_e("Today's Clicks", 'dynamic-cta-elementor'); ?></div>
+                        <?php if ($summary['day_growth'] > 0): ?>
+                            <div class="dcta-growth-badge positive">
+                                ▲ +<?php echo esc_html($summary['day_growth']); ?>% vs <?php esc_html_e('Yesterday', 'dynamic-cta-elementor'); ?>
+                            </div>
+                        <?php elseif ($summary['day_growth'] < 0): ?>
+                            <div class="dcta-growth-badge negative">
+                                ▼ <?php echo esc_html($summary['day_growth']); ?>% vs <?php esc_html_e('Yesterday', 'dynamic-cta-elementor'); ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="dcta-growth-badge neutral">
+                                ➔ 0% vs <?php esc_html_e('Yesterday', 'dynamic-cta-elementor'); ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
+                <!-- Last 7 Days & Week Growth -->
                 <div class="dcta-metric-card">
-                    <div class="metric-icon"><span class="dashicons dashicons-location"></span></div>
+                    <div class="metric-icon"><span class="dashicons dashicons-chart-line"></span></div>
                     <div class="metric-data">
-                        <div class="metric-value"><?php echo esc_html($summary['top_area']); ?></div>
-                        <div class="metric-label"><?php esc_html_e('Top Performing Area', 'dynamic-cta-elementor'); ?></div>
+                        <div class="metric-value"><?php echo esc_html(number_format_i18n($summary['last_7_clicks'])); ?></div>
+                        <div class="metric-label"><?php esc_html_e('Last 7 Days', 'dynamic-cta-elementor'); ?></div>
+                        <?php if ($summary['week_growth'] > 0): ?>
+                            <div class="dcta-growth-badge positive">
+                                ▲ +<?php echo esc_html($summary['week_growth']); ?>% vs <?php esc_html_e('Prev 7 Days', 'dynamic-cta-elementor'); ?>
+                            </div>
+                        <?php elseif ($summary['week_growth'] < 0): ?>
+                            <div class="dcta-growth-badge negative">
+                                ▼ <?php echo esc_html($summary['week_growth']); ?>% vs <?php esc_html_e('Prev 7 Days', 'dynamic-cta-elementor'); ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="dcta-growth-badge neutral">
+                                ➔ 0% vs <?php esc_html_e('Prev 7 Days', 'dynamic-cta-elementor'); ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
+                <!-- Last 30 Days -->
                 <div class="dcta-metric-card">
-                    <div class="metric-icon"><span class="dashicons dashicons-admin-post"></span></div>
+                    <div class="metric-icon"><span class="dashicons dashicons-calendar"></span></div>
                     <div class="metric-data">
-                        <div class="metric-value"><?php echo esc_html($summary['top_post']); ?></div>
-                        <div class="metric-label"><?php esc_html_e('Top Article', 'dynamic-cta-elementor'); ?></div>
+                        <div class="metric-value"><?php echo esc_html(number_format_i18n($summary['last_30_clicks'])); ?></div>
+                        <div class="metric-label"><?php esc_html_e('Last 30 Days', 'dynamic-cta-elementor'); ?></div>
+                        <div class="dcta-growth-badge neutral">
+                            <?php esc_html_e('Monthly Total', 'dynamic-cta-elementor'); ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total All-Time -->
+                <div class="dcta-metric-card">
+                    <div class="metric-icon"><span class="dashicons dashicons-database"></span></div>
+                    <div class="metric-data">
+                        <div class="metric-value"><?php echo esc_html(number_format_i18n($summary['total_clicks'])); ?></div>
+                        <div class="metric-label"><?php esc_html_e('Total All-Time Clicks', 'dynamic-cta-elementor'); ?></div>
+                        <div class="dcta-growth-badge neutral">
+                            <?php esc_html_e('Lifetime Record', 'dynamic-cta-elementor'); ?>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Toolbar & Search -->
+            <!-- Daily Trend Visualizer & Breakdown Section -->
+            <div class="dcta-analytics-container">
+                <div class="dcta-analytics-header">
+                    <h2>
+                        <span class="dashicons dashicons-chart-area"></span>
+                        <?php printf(esc_html__('Daily Click Trend (%d Days)', 'dynamic-cta-elementor'), $range); ?>
+                    </h2>
+                    <form method="get" class="dcta-inline-form">
+                        <input type="hidden" name="page" value="dynamic-cta-stats">
+                        <?php if (!empty($search)): ?>
+                            <input type="hidden" name="s" value="<?php echo esc_attr($search); ?>">
+                        <?php endif; ?>
+                        <select name="range" onchange="this.form.submit()">
+                            <option value="7" <?php selected($range, 7); ?>><?php esc_html_e('Last 7 Days', 'dynamic-cta-elementor'); ?></option>
+                            <option value="14" <?php selected($range, 14); ?>><?php esc_html_e('Last 14 Days', 'dynamic-cta-elementor'); ?></option>
+                            <option value="30" <?php selected($range, 30); ?>><?php esc_html_e('Last 30 Days', 'dynamic-cta-elementor'); ?></option>
+                        </select>
+                    </form>
+                </div>
+
+                <!-- Daily Bar Chart -->
+                <div class="dcta-chart-bars">
+                    <?php
+                    $max = $daily_data['max_clicks'];
+                    foreach ($daily_data['trends'] as $item):
+                        $pct = max(5, round(($item['clicks'] / $max) * 100));
+                    ?>
+                        <div class="dcta-bar-col" title="<?php echo esc_attr($item['formatted_date'] . ': ' . $item['clicks'] . ' clicks'); ?>">
+                            <span class="dcta-bar-value"><?php echo esc_html($item['clicks']); ?></span>
+                            <div class="dcta-bar-fill" style="height: <?php echo esc_attr($pct); ?>%;"></div>
+                            <span class="dcta-bar-label"><?php echo esc_html($item['formatted_date']); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- Side-by-Side Top Performance Breakdown -->
+                <div class="dcta-breakdown-grid">
+                    <!-- Top Areas Card -->
+                    <div class="dcta-breakdown-card">
+                        <h3>
+                            <span class="dashicons dashicons-location"></span>
+                            <?php esc_html_e('Top Performing Areas', 'dynamic-cta-elementor'); ?>
+                        </h3>
+                        <?php if (empty($top_areas)): ?>
+                            <p style="color:#8c8f94;"><?php esc_html_e('No area data in this period.', 'dynamic-cta-elementor'); ?></p>
+                        <?php else: ?>
+                            <?php foreach ($top_areas as $area): ?>
+                                <div class="dcta-rank-item">
+                                    <div class="dcta-rank-info">
+                                        <span class="dcta-rank-title"><?php echo esc_html($area['area_name']); ?></span>
+                                        <span class="dcta-rank-count"><?php echo esc_html($area['clicks']); ?> clicks (<?php echo esc_html($area['percent']); ?>%)</span>
+                                    </div>
+                                    <div class="dcta-progress-bg">
+                                        <div class="dcta-progress-bar" style="width: <?php echo esc_attr($area['percent']); ?>%;"></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Top Articles Card -->
+                    <div class="dcta-breakdown-card">
+                        <h3>
+                            <span class="dashicons dashicons-admin-post"></span>
+                            <?php esc_html_e('Top Performing Articles', 'dynamic-cta-elementor'); ?>
+                        </h3>
+                        <?php if (empty($top_posts)): ?>
+                            <p style="color:#8c8f94;"><?php esc_html_e('No post data in this period.', 'dynamic-cta-elementor'); ?></p>
+                        <?php else: ?>
+                            <?php foreach ($top_posts as $post_item): ?>
+                                <div class="dcta-rank-item">
+                                    <div class="dcta-rank-info">
+                                        <span class="dcta-rank-title">
+                                            <?php if ($post_item['post_id'] > 0): ?>
+                                                <a href="<?php echo esc_url(get_permalink($post_item['post_id'])); ?>" target="_blank" rel="noopener noreferrer">
+                                                    <?php echo esc_html(wp_trim_words($post_item['post_title'], 6, '...')); ?>
+                                                </a>
+                                            <?php else: ?>
+                                                <?php echo esc_html($post_item['post_title']); ?>
+                                            <?php endif; ?>
+                                        </span>
+                                        <span class="dcta-rank-count"><?php echo esc_html($post_item['clicks']); ?> clicks (<?php echo esc_html($post_item['percent']); ?>%)</span>
+                                    </div>
+                                    <div class="dcta-progress-bg">
+                                        <div class="dcta-progress-bar" style="width: <?php echo esc_attr($post_item['percent']); ?>%;"></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toolbar & Detailed Click Logs Table -->
             <div class="dynamic-cta-toolbar margin-top-20">
                 <div class="toolbar-left">
                     <form method="get" class="dcta-inline-form">
                         <input type="hidden" name="page" value="dynamic-cta-stats">
+                        <input type="hidden" name="range" value="<?php echo esc_attr($range); ?>">
                         <input type="search" name="s" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search click logs...', 'dynamic-cta-elementor'); ?>">
                         <button type="submit" class="button"><?php esc_html_e('Search', 'dynamic-cta-elementor'); ?></button>
                     </form>
+                    <span style="color:#646970; font-size:12px; margin-left: 10px;">
+                        ⚡ <?php esc_html_e('Anti-spam & automatic log pruning active (>60 days cleared to preserve speed).', 'dynamic-cta-elementor'); ?>
+                    </span>
                 </div>
                 <div class="toolbar-right">
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
