@@ -1,11 +1,11 @@
 === Dynamic CTA for Elementor ===
 Contributors: halimurrosyid
 Donate link: https://indahweb.com/
-Tags: elementor, dynamic tag, cta, migration, popup link, destination sitemap importer
+Tags: elementor, dynamic tag, cta, migration, popup link, redis cache
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,9 +17,13 @@ Universal area-based CTA link migration plugin for Elementor Pro. Dynamically ro
 
 == Changelog ==
 
+= 1.0.6 =
+* Added Live Preview Mode support inside Elementor Editor.
+* Enhanced Redis & Memcached Object Cache flushing compatibility.
+* Added optional `[dynamic_cta_url]` shortcode support.
+
 = 1.0.5 =
 * Streamlined Area Mapping interface: Displaying explicit "Source URL (Web Saat Ini)" and "Destination URL (Web Tujuan)" columns.
-* Removed redundant Auto Detect button in favor of clean 1-action "Import Destination Sitemap".
 
 = 1.0.4 =
 * Added "Import Destination Sitemap" feature: Paste your NEW destination site's XML sitemap URL (e.g. `https://jasawifi.com/post-sitemap.xml`) to automatically import and map all landing page URLs instantly without manual typing!

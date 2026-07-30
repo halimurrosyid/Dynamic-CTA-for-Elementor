@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class CTA_Resolver
- * High-performance Multi-Layer Smart Resolver for dynamic CTA destination URLs.
+ * High-performance Multi-Layer Smart Resolver for dynamic CTA destination URLs with Redis/Memcached & Elementor Preview support.
  */
 class CTA_Resolver {
 
@@ -23,6 +23,11 @@ class CTA_Resolver {
             $default_url = 'https://jasawifi.com/iconnet/';
         }
         $base_url = rtrim($default_url, '/') . '/';
+
+        // Elementor Editor Live Preview Mode
+        if (class_exists('\Elementor\Plugin') && \Elementor\Plugin::$instance->editor->is_edit_mode()) {
+            return esc_url_raw($base_url . 'area-sample/');
+        }
 
         $enable_cache = get_option('dynamic_cta_enable_cache', 'yes');
         $cache_lifetime_hours = (int) get_option('dynamic_cta_cache_lifetime', '12');
@@ -70,7 +75,7 @@ class CTA_Resolver {
             }
         }
 
-        // LAYER 2: Direct URL Path Segment Extraction (e.g. /promo/bandung/ or /kota/bekasi/)
+        // LAYER 2: Direct URL Path Segment Extraction (e.g. /promo/bandung/ or /harga/bekasi/)
         if (!$resolved_url && !empty($current_path)) {
             $segments = explode('/', $current_path);
             foreach (array_reverse($segments) as $segment) {
@@ -193,7 +198,7 @@ class CTA_Resolver {
                 return [];
             }
 
-            $mappings = $wpdb->get_results("SELECT keyword, area_name, destination_url FROM {$table} ORDER BY CHAR_LENGTH(keyword) DESC");
+            $mappings = $wpdb->get_results("SELECT keyword, area_name, source_url, destination_url FROM {$table} ORDER BY CHAR_LENGTH(keyword) DESC");
             if (!is_array($mappings)) {
                 $mappings = [];
             }
@@ -204,12 +209,16 @@ class CTA_Resolver {
     }
 
     /**
-     * Clear CTA Transients Cache
+     * Clear CTA Transients Cache (Compatible with Redis / Memcached / DB transients)
      */
     public static function clear_cache(): void {
         delete_transient('dcta_all_mappings');
 
         global $wpdb;
         $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_dcta_url_%' OR option_name LIKE '_transient_timeout_dcta_url_%'");
+
+        if (function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+        }
     }
 }

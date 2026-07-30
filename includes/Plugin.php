@@ -69,6 +69,9 @@ class Plugin {
         add_action('init', [$this, 'load_textdomain']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
 
+        // Optional Shortcode support [dynamic_cta_url]
+        add_shortcode('dynamic_cta_url', [$this, 'shortcode_dynamic_cta_url']);
+
         // Click Tracking AJAX Endpoints
         add_action('wp_ajax_dynamic_cta_record_click', [$this, 'ajax_record_click']);
         add_action('wp_ajax_nopriv_dynamic_cta_record_click', [$this, 'ajax_record_click']);
@@ -83,6 +86,15 @@ class Plugin {
             false,
             dirname(DYNAMIC_CTA_BASENAME) . '/languages/'
         );
+    }
+
+    /**
+     * Optional Shortcode callback [dynamic_cta_url]
+     *
+     * @return string
+     */
+    public function shortcode_dynamic_cta_url(): string {
+        return CTA_Resolver::get_cta_url();
     }
 
     /**

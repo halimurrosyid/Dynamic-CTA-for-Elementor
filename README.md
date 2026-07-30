@@ -1,6 +1,6 @@
 # Dynamic CTA for Elementor
 
-![Version](https://img.shields.io/badge/version-1.0.5-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)
 ![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)
 ![PHP](https://img.shields.io/badge/php-8.1%2B-purple.svg)
 ![Elementor](https://img.shields.io/badge/elementor-pro-red.svg)
@@ -15,13 +15,6 @@
 When migrating thousands of area-specific articles (such as `https://iconnet.biz.id/promo/bandung/`, `https://iconnet.biz.id/pasang-iconnet-bekasi/`, `https://iconnet.biz.id/harga/jakarta/`), creating a separate popup for each city is tedious and unmaintainable. 
 
 With **Dynamic CTA for Elementor**, you create **just ONE Elementor Popup** containing your CTA image or button, and set the link field to **Dynamic Tags → Dynamic CTA URL**. The plugin dynamically converts the link based on the active post's context!
-
----
-
-## 🔥 What's New in v1.0.5
-
-- 📊 **Source & Destination Columns**: Explicitly displays `Source URL (Web Saat Ini)` and `Destination URL (Web Tujuan)` side-by-side in the Area Mapping table.
-- 📡 **Import Destination Website Sitemap**: Paste your Destination Website's XML Sitemap URL (e.g., `https://jasawifi.com/post-sitemap.xml`) to automatically import and map all landing URLs without manual typing!
 
 ---
 
