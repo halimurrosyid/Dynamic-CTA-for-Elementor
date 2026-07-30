@@ -1,0 +1,6 @@
+# Git Ignore
+dynamic-cta-elementor.zip
+.DS_Store
+Thumbs.db
+*.log
+scratch/
