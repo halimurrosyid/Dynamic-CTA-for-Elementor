@@ -29,12 +29,14 @@
             var id = $(this).data('id');
             var keyword = $(this).data('keyword');
             var area = $(this).data('area');
+            var source = $(this).data('source');
             var url = $(this).data('url');
 
             $('#modal-form-title').text('Edit Area Mapping');
             $('#field-mapping-id').val(id);
             $('#field-keyword').val(keyword);
             $('#field-area-name').val(area);
+            $('#field-source-url').val(source);
             $('#field-destination-url').val(url);
 
             $('#modal-mapping-form').fadeIn('fast');
@@ -125,32 +127,6 @@
                 } else {
                     alert(res.data.message || 'Failed to clear mappings.');
                 }
-            });
-        });
-
-        // Direct 1-Click Auto Detect Scan Button
-        $('.btn-run-auto-detect').on('click', function() {
-            var $btn = $(this);
-            var origHtml = $btn.html();
-
-            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> ' + dynamic_cta_admin.strings.scanning);
-
-            $.post(dynamic_cta_admin.ajax_url, {
-                action: 'dynamic_cta_auto_detect',
-                nonce: dynamic_cta_admin.nonce
-            }, function(res) {
-                $btn.prop('disabled', false).html(origHtml);
-                if (res.success) {
-                    showNotice(res.data.message, 'success');
-                    setTimeout(function() {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    alert(res.data.message || 'Auto-detection failed.');
-                }
-            }).fail(function() {
-                $btn.prop('disabled', false).html(origHtml);
-                alert('Auto-detection request failed.');
             });
         });
 

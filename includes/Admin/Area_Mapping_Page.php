@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Area_Mapping_Page
- * Renders Area Mapping Admin Interface with Destination Sitemap Importer, Auto Detect, and Clear All features.
+ * Renders Area Mapping Admin Interface displaying Source URL (Web Saat Ini) & Destination URL (Web Tujuan).
  */
 class Area_Mapping_Page {
 
@@ -22,7 +22,6 @@ class Area_Mapping_Page {
         add_action('wp_ajax_dynamic_cta_save_mapping', [self::class, 'ajax_save_mapping']);
         add_action('wp_ajax_dynamic_cta_delete_mapping', [self::class, 'ajax_delete_mapping']);
         add_action('wp_ajax_dynamic_cta_clear_all_mappings', [self::class, 'ajax_clear_all_mappings']);
-        add_action('wp_ajax_dynamic_cta_auto_detect', [self::class, 'ajax_auto_detect']);
         add_action('wp_ajax_dynamic_cta_import_destination_sitemap', [self::class, 'ajax_import_destination_sitemap']);
         add_action('wp_ajax_dynamic_cta_import_csv', [self::class, 'ajax_import_csv']);
         add_action('admin_init', [self::class, 'handle_csv_export']);
@@ -61,9 +60,6 @@ class Area_Mapping_Page {
                     </button>
                     <button type="button" class="button button-secondary btn-open-dest-sitemap-modal">
                         <span class="dashicons dashicons-sitemap"></span> <?php esc_html_e('Import Destination Sitemap', 'dynamic-cta-elementor'); ?>
-                    </button>
-                    <button type="button" class="button button-secondary btn-run-auto-detect">
-                        <span class="dashicons dashicons-update"></span> <?php esc_html_e('Generate Mapping (Auto Detect)', 'dynamic-cta-elementor'); ?>
                     </button>
                     <button type="button" class="button button-secondary button-link-delete btn-clear-all-mappings">
                         <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Clear All Mappings', 'dynamic-cta-elementor'); ?>
@@ -113,9 +109,15 @@ class Area_Mapping_Page {
                         </div>
 
                         <div class="dcta-form-group">
-                            <label for="field-destination-url"><strong><?php esc_html_e('Destination URL', 'dynamic-cta-elementor'); ?> *</strong></label>
+                            <label for="field-source-url"><strong><?php esc_html_e('Source URL (Web Saat Ini)', 'dynamic-cta-elementor'); ?></strong></label>
+                            <input type="url" name="source_url" id="field-source-url" class="large-text" placeholder="e.g. https://iconnet.biz.id/pasang-iconnet-bandung/">
+                            <p class="description"><?php esc_html_e('Sample URL on current website for reference.', 'dynamic-cta-elementor'); ?></p>
+                        </div>
+
+                        <div class="dcta-form-group">
+                            <label for="field-destination-url"><strong><?php esc_html_e('Destination URL (Web Tujuan)', 'dynamic-cta-elementor'); ?> *</strong></label>
                             <input type="url" name="destination_url" id="field-destination-url" class="large-text" placeholder="https://jasawifi.com/iconnet/bandung/" required>
-                            <p class="description"><?php esc_html_e('Target URL where traffic will be directed.', 'dynamic-cta-elementor'); ?></p>
+                            <p class="description"><?php esc_html_e('Target destination URL where traffic will be routed.', 'dynamic-cta-elementor'); ?></p>
                         </div>
                     </form>
                 </div>
@@ -164,7 +166,7 @@ class Area_Mapping_Page {
                             <label for="field-csv-file"><strong><?php esc_html_e('Select CSV File', 'dynamic-cta-elementor'); ?> *</strong></label>
                             <input type="file" name="csv_file" id="field-csv-file" accept=".csv" required>
                             <p class="description">
-                                <?php esc_html_e('CSV must contain header line: keyword,area_name,destination_url', 'dynamic-cta-elementor'); ?>
+                                <?php esc_html_e('CSV header: keyword,area_name,source_url,destination_url', 'dynamic-cta-elementor'); ?>
                             </p>
                         </div>
                     </form>
@@ -223,6 +225,7 @@ class Area_Mapping_Page {
         $id              = isset($_POST['mapping_id']) ? (int) $_POST['mapping_id'] : 0;
         $keyword         = isset($_POST['keyword']) ? sanitize_key($_POST['keyword']) : '';
         $area_name       = isset($_POST['area_name']) ? sanitize_text_field($_POST['area_name']) : '';
+        $source_url      = isset($_POST['source_url']) ? esc_url_raw($_POST['source_url']) : '';
         $destination_url = isset($_POST['destination_url']) ? esc_url_raw($_POST['destination_url']) : '';
 
         if (empty($keyword) || empty($area_name) || empty($destination_url)) {
@@ -248,10 +251,11 @@ class Area_Mapping_Page {
                 [
                     'keyword'         => $keyword,
                     'area_name'       => $area_name,
+                    'source_url'      => $source_url,
                     'destination_url' => $destination_url,
                 ],
                 ['id' => $id],
-                ['%s', '%s', '%s'],
+                ['%s', '%s', '%s', '%s'],
                 ['%d']
             );
             $msg = __('Mapping updated successfully.', 'dynamic-cta-elementor');
@@ -261,9 +265,10 @@ class Area_Mapping_Page {
                 [
                     'keyword'         => $keyword,
                     'area_name'       => $area_name,
+                    'source_url'      => $source_url,
                     'destination_url' => $destination_url,
                 ],
-                ['%s', '%s', '%s']
+                ['%s', '%s', '%s', '%s']
             );
             $msg = __('New area mapping added successfully.', 'dynamic-cta-elementor');
         }
@@ -307,28 +312,6 @@ class Area_Mapping_Page {
 
         Scanner::truncate_mappings();
         wp_send_json_success(['message' => __('All area mappings cleared successfully.', 'dynamic-cta-elementor')]);
-    }
-
-    /**
-     * AJAX Auto Detect Scan (1-Click Internal Database Scan)
-     */
-    public static function ajax_auto_detect(): void {
-        check_ajax_referer('dynamic_cta_admin_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => __('Unauthorized permission.', 'dynamic-cta-elementor')]);
-        }
-
-        $result = Scanner::scan_posts_and_taxonomies();
-
-        $message = sprintf(
-            __('Scan complete! Total scanned items: %d. New valid area mappings inserted: %d. Skipped existing: %d.', 'dynamic-cta-elementor'),
-            $result['total_scanned'],
-            $result['inserted'],
-            $result['skipped']
-        );
-
-        wp_send_json_success(['message' => $message]);
     }
 
     /**
@@ -396,7 +379,8 @@ class Area_Mapping_Page {
 
             $keyword         = sanitize_key(trim($row[0]));
             $area_name       = sanitize_text_field(trim($row[1]));
-            $destination_url = esc_url_raw(trim($row[2]));
+            $source_url      = isset($row[2]) ? esc_url_raw(trim($row[2])) : '';
+            $destination_url = isset($row[3]) ? esc_url_raw(trim($row[3])) : esc_url_raw(trim($row[2]));
 
             if (empty($keyword) || empty($area_name) || empty($destination_url)) {
                 $skipped++;
@@ -409,10 +393,11 @@ class Area_Mapping_Page {
                     $table,
                     [
                         'area_name'       => $area_name,
+                        'source_url'      => $source_url,
                         'destination_url' => $destination_url,
                     ],
                     ['id' => $existing],
-                    ['%s', '%s'],
+                    ['%s', '%s', '%s'],
                     ['%d']
                 );
                 $imported++;
@@ -422,9 +407,10 @@ class Area_Mapping_Page {
                     [
                         'keyword'         => $keyword,
                         'area_name'       => $area_name,
+                        'source_url'      => $source_url,
                         'destination_url' => $destination_url,
                     ],
-                    ['%s', '%s', '%s']
+                    ['%s', '%s', '%s', '%s']
                 );
                 $imported++;
             }
@@ -454,17 +440,17 @@ class Area_Mapping_Page {
 
         global $wpdb;
         $table = DB::get_mappings_table();
-        $results = $wpdb->get_results("SELECT keyword, area_name, destination_url FROM {$table} ORDER BY keyword ASC", ARRAY_A);
+        $results = $wpdb->get_results("SELECT keyword, area_name, source_url, destination_url FROM {$table} ORDER BY keyword ASC", ARRAY_A);
 
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename=dynamic_cta_mappings_' . date('Y-m-d') . '.csv');
 
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['keyword', 'area_name', 'destination_url']);
+        fputcsv($output, ['keyword', 'area_name', 'source_url', 'destination_url']);
 
         if (is_array($results)) {
             foreach ($results as $row) {
-                fputcsv($output, [$row['keyword'], $row['area_name'], $row['destination_url']]);
+                fputcsv($output, [$row['keyword'], $row['area_name'], $row['source_url'], $row['destination_url']]);
             }
         }
 

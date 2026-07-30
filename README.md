@@ -1,6 +1,6 @@
 # Dynamic CTA for Elementor
 
-![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.5-blue.svg)
 ![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)
 ![PHP](https://img.shields.io/badge/php-8.1%2B-purple.svg)
 ![Elementor](https://img.shields.io/badge/elementor-pro-red.svg)
@@ -18,9 +18,10 @@ With **Dynamic CTA for Elementor**, you create **just ONE Elementor Popup** cont
 
 ---
 
-## 🔥 What's New in v1.0.4
+## 🔥 What's New in v1.0.5
 
-- 📡 **Import Destination Website Sitemap**: Paste your Destination Website's XML Sitemap URL (e.g., `https://jasawifi.com/post-sitemap.xml`) to automatically import and map all 100+ landing URLs in 2 seconds without manual typing!
+- 📊 **Source & Destination Columns**: Explicitly displays `Source URL (Web Saat Ini)` and `Destination URL (Web Tujuan)` side-by-side in the Area Mapping table.
+- 📡 **Import Destination Website Sitemap**: Paste your Destination Website's XML Sitemap URL (e.g., `https://jasawifi.com/post-sitemap.xml`) to automatically import and map all landing URLs without manual typing!
 
 ---
 

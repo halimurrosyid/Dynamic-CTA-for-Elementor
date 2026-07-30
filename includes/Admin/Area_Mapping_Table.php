@@ -11,7 +11,7 @@ if (!class_exists('WP_List_Table')) {
 
 /**
  * Class Area_Mapping_Table
- * Custom WP_List_Table for managing Area Mappings.
+ * Custom WP_List_Table showing Keyword/Area, Source URL (Web Saat Ini), and Destination URL (Web Tujuan).
  */
 class Area_Mapping_Table extends \WP_List_Table {
 
@@ -26,9 +26,9 @@ class Area_Mapping_Table extends \WP_List_Table {
     public function get_columns(): array {
         return [
             'cb'              => '<input type="checkbox" />',
-            'keyword'         => __('Keyword', 'dynamic-cta-elementor'),
-            'area_name'       => __('Area Name', 'dynamic-cta-elementor'),
-            'destination_url' => __('Destination URL', 'dynamic-cta-elementor'),
+            'keyword'         => __('Keyword / Area', 'dynamic-cta-elementor'),
+            'source_url'      => __('Source URL (Web Saat Ini)', 'dynamic-cta-elementor'),
+            'destination_url' => __('Destination URL (Web Tujuan)', 'dynamic-cta-elementor'),
             'updated_at'      => __('Last Updated', 'dynamic-cta-elementor'),
             'actions'         => __('Actions', 'dynamic-cta-elementor'),
         ];
@@ -37,7 +37,6 @@ class Area_Mapping_Table extends \WP_List_Table {
     protected function get_sortable_columns(): array {
         return [
             'keyword'    => ['keyword', false],
-            'area_name'  => ['area_name', false],
             'updated_at' => ['updated_at', true],
         ];
     }
@@ -49,19 +48,21 @@ class Area_Mapping_Table extends \WP_List_Table {
     protected function column_default($item, $column_name): string {
         switch ($column_name) {
             case 'keyword':
-                return '<code>' . esc_html($item['keyword']) . '</code>';
-            case 'area_name':
-                return '<strong>' . esc_html($item['area_name']) . '</strong>';
+                return '<code>' . esc_html($item['keyword']) . '</code><br><small style="color:#646970;">' . esc_html($item['area_name']) . '</small>';
+            case 'source_url':
+                $src = !empty($item['source_url']) ? $item['source_url'] : home_url('/' . $item['keyword'] . '/');
+                return '<a href="' . esc_url($src) . '" target="_blank" rel="noopener noreferrer" style="color:#d63638;">' . esc_html($src) . '</a>';
             case 'destination_url':
-                return '<a href="' . esc_url($item['destination_url']) . '" target="_blank" rel="noopener noreferrer">' . esc_html($item['destination_url']) . '</a>';
+                return '<a href="' . esc_url($item['destination_url']) . '" target="_blank" rel="noopener noreferrer" style="color:#008a20;font-weight:600;">' . esc_html($item['destination_url']) . '</a>';
             case 'updated_at':
                 return esc_html($item['updated_at']);
             case 'actions':
                 $edit_btn = sprintf(
-                    '<button type="button" class="button button-small btn-edit-mapping" data-id="%d" data-keyword="%s" data-area="%s" data-url="%s">%s</button>',
+                    '<button type="button" class="button button-small btn-edit-mapping" data-id="%d" data-keyword="%s" data-area="%s" data-source="%s" data-url="%s">%s</button>',
                     $item['id'],
                     esc_attr($item['keyword']),
                     esc_attr($item['area_name']),
+                    esc_attr($item['source_url'] ?? ''),
                     esc_attr($item['destination_url']),
                     esc_html__('Edit', 'dynamic-cta-elementor')
                 );
@@ -99,7 +100,7 @@ class Area_Mapping_Table extends \WP_List_Table {
         $where = '';
         if (!empty($search)) {
             $like = '%' . $wpdb->esc_like($search) . '%';
-            $where = $wpdb->prepare(" WHERE keyword LIKE %s OR area_name LIKE %s OR destination_url LIKE %s ", $like, $like, $like);
+            $where = $wpdb->prepare(" WHERE keyword LIKE %s OR area_name LIKE %s OR source_url LIKE %s OR destination_url LIKE %s ", $like, $like, $like, $like);
         }
 
         $orderby = isset($_REQUEST['orderby']) ? sanitize_sql_orderby($_REQUEST['orderby']) : 'updated_at';

@@ -10,6 +10,7 @@ if (!defined('ABSPATH')) {
  * Handles Database initialization, schema upgrades, and table operations.
  */
 class DB {
+
     /**
      * Get Table Name for Area Mappings
      *
@@ -47,7 +48,7 @@ class DB {
     }
 
     /**
-     * Create Database Tables
+     * Create Database Tables & Run Schema Migrations
      */
     public static function create_tables(): void {
         global $wpdb;
@@ -60,6 +61,7 @@ class DB {
             id bigint(20) NOT NULL AUTO_INCREMENT,
             keyword varchar(100) NOT NULL,
             area_name varchar(100) NOT NULL,
+            source_url text DEFAULT NULL,
             destination_url text NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
@@ -85,6 +87,12 @@ class DB {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql_mappings);
         dbDelta($sql_clicks);
+
+        // Ensure source_url column exists if table was previously created
+        $column = $wpdb->get_results("SHOW COLUMNS FROM {$mappings_table} LIKE 'source_url'");
+        if (empty($column)) {
+            $wpdb->query("ALTER TABLE {$mappings_table} ADD COLUMN source_url text DEFAULT NULL AFTER area_name");
+        }
     }
 
     /**
@@ -94,6 +102,6 @@ class DB {
         add_option('dynamic_cta_default_url', 'https://jasawifi.com/iconnet/');
         add_option('dynamic_cta_open_link', '_self');
         add_option('dynamic_cta_enable_cache', 'yes');
-        add_option('dynamic_cta_cache_lifetime', '12'); // in hours
+        add_option('dynamic_cta_cache_lifetime', '12');
     }
 }

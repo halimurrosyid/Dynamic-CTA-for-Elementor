@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Scanner
- * Universal & High-Accuracy Area Scanner supporting Destination Site XML Sitemaps, WP Posts, and Taxonomies.
+ * Universal & High-Accuracy Area Scanner with Source & Destination URL Mapping.
  */
 class Scanner {
 
@@ -28,7 +28,7 @@ class Scanner {
         'bogor', 'kabupaten-bogor', 'cibinong', 'depok', 'cinere', 'sawangan', 'tasikmalaya', 'cirebon',
         'sukabumi', 'purwakarta', 'karawang', 'subang', 'garut', 'cianjur', 'indramayu', 'sumedang',
         'majalengka', 'kuningan', 'ciamis', 'banjar', 'pangandaran', 'soreang', 'ngamprah', 'singaparna',
-        'lembang', 'banjaran', 'majalaya', 'cileunyi', 'rancaekek', 'dago', 'pasteur', 'buplatform',
+        'lembang', 'banjaran', 'majalaya', 'cileunyi', 'rancaekek', 'dago', 'pasteur',
 
         // Banten
         'tangerang', 'tangerang-selatan', 'tangsel', 'kabupaten-tangerang', 'serang', 'cilegon', 'pandeglang',
@@ -50,17 +50,16 @@ class Scanner {
         // Bali & Nusa Tenggara
         'denpasar', 'badung', 'kuta', 'canggu', 'seminyak', 'ubud', 'gianyar', 'tabanan', 'buleleng',
         'singaraja', 'jembrana', 'negara', 'karangasem', 'klungkung', 'bangli', 'mataram', 'lombok',
-        'lombok-barat', 'lombok-tengah', 'lombok-timur', 'bima', 'sumbawa', 'kupang', 'labuan-bajo',
 
         // Sumatra
-        'medan', 'deli-serdang', 'binjai', 'pematang-siantar', 'tebing-tinggi', 'kabanjahe', 'balige',
+        'medan', 'deli-serdang', 'binjai', 'pematang-siantar', 'tebing-tinggi', 'kabanjahe',
         'palembang', 'lubuklinggau', 'prabumulih', 'pekanbaru', 'dumai', 'batam', 'tanjung-pinang',
         'padang', 'bukittinggi', 'payakumbuh', 'pariaman', 'bandar-lampung', 'metro', 'lampung',
-        'jambi', 'muaro-jambi', 'bengkulu', 'bengkulu-selatan', 'pangkal-pinang', 'bangka', 'belitung',
+        'jambi', 'muaro-jambi', 'bengkulu', 'pangkal-pinang', 'bangka', 'belitung',
 
         // Kalimantan
         'banjarmasin', 'banjarbaru', 'martapura', 'balikpapan', 'samarinda', 'bontang', 'kutai',
-        'pontianak', 'singkawang', 'palangkaraya', 'sampit', 'tarakan', 'nununkan',
+        'pontianak', 'singkawang', 'palangkaraya', 'sampit', 'tarakan',
 
         // Sulawesi, Maluku & Papua
         'makassar', 'gowa', 'maros', 'bone', 'parepare', 'palopo', 'manado', 'bitung', 'tomohon',
@@ -69,7 +68,7 @@ class Scanner {
     ];
 
     /**
-     * Import Destination URLs directly from Destination Website's XML Sitemap
+     * Import Destination URLs from Destination Sitemap & map Source URLs from current website
      *
      * @param string $sitemap_url
      * @return array
@@ -93,9 +92,9 @@ class Scanner {
         }
         $existing_map = array_fill_keys(array_map('strtolower', $existing_keywords), true);
 
-        $total_scanned = count($urls);
+        $total_scanned  = count($urls);
         $inserted_count = 0;
-        $updated_count = 0;
+        $updated_count  = 0;
 
         foreach ($urls as $destination_url) {
             $destination_url = esc_url_raw(trim($destination_url));
@@ -109,18 +108,22 @@ class Scanner {
                 continue;
             }
 
-            $keyword = sanitize_key($matched_keyword);
+            $keyword   = sanitize_key($matched_keyword);
             $area_name = ucwords(str_replace('-', ' ', $keyword));
+
+            // Find matching source URL on current website
+            $source_url = self::find_matching_source_url($keyword);
 
             if (isset($existing_map[$keyword])) {
                 $wpdb->update(
                     $table,
                     [
                         'area_name'       => $area_name,
+                        'source_url'      => $source_url,
                         'destination_url' => $destination_url,
                     ],
                     ['keyword' => $keyword],
-                    ['%s', '%s'],
+                    ['%s', '%s', '%s'],
                     ['%s']
                 );
                 $updated_count++;
@@ -130,9 +133,10 @@ class Scanner {
                     [
                         'keyword'         => $keyword,
                         'area_name'       => $area_name,
+                        'source_url'      => $source_url,
                         'destination_url' => $destination_url,
                     ],
-                    ['%s', '%s', '%s']
+                    ['%s', '%s', '%s', '%s']
                 );
 
                 if ($result) {
@@ -152,7 +156,32 @@ class Scanner {
     }
 
     /**
-     * Recursively fetch URLs from XML Sitemap or Sitemap Index
+     * Find sample/matching source URL on current website for a given keyword
+     *
+     * @param string $keyword
+     * @return string
+     */
+    public static function find_matching_source_url(string $keyword): string {
+        $posts = get_posts([
+            'post_type'      => ['post', 'page'],
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            's'              => $keyword,
+            'fields'         => 'ids',
+        ]);
+
+        if (!empty($posts)) {
+            $permalink = get_permalink($posts[0]);
+            if ($permalink) {
+                return esc_url_raw($permalink);
+            }
+        }
+
+        return esc_url_raw(home_url('/' . $keyword . '/'));
+    }
+
+    /**
+     * Recursively fetch URLs from XML Sitemap
      *
      * @param string $url
      * @param int $depth
@@ -209,107 +238,6 @@ class Scanner {
 
         libxml_clear_errors();
         return array_unique($extracted_urls);
-    }
-
-    /**
-     * Scan WordPress Posts & Categories cleanly
-     *
-     * @return array
-     */
-    public static function scan_posts_and_taxonomies(): array {
-        $post_ids = get_posts([
-            'post_type'      => ['post', 'page'],
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'fields'         => 'ids',
-        ]);
-
-        $urls = [];
-        foreach ($post_ids as $pid) {
-            $permalink = get_permalink($pid);
-            if ($permalink) {
-                $urls[] = $permalink;
-            }
-        }
-
-        $categories = get_categories(['hide_empty' => false]);
-        if (!is_wp_error($categories)) {
-            foreach ($categories as $cat) {
-                $urls[] = $cat->slug;
-            }
-        }
-
-        return self::process_url_list($urls);
-    }
-
-    /**
-     * Process list of URLs/strings against Location Dictionary and populate database
-     *
-     * @param array $items
-     * @return array
-     */
-    private static function process_url_list(array $items): array {
-        global $wpdb;
-        $table = DB::get_mappings_table();
-
-        $existing_keywords = $wpdb->get_col("SELECT keyword FROM {$table}");
-        if (!is_array($existing_keywords)) {
-            $existing_keywords = [];
-        }
-        $existing_map = array_fill_keys(array_map('strtolower', $existing_keywords), true);
-
-        $base_url = get_option('dynamic_cta_default_url', 'https://jasawifi.com/iconnet/');
-        $base_url = rtrim($base_url, '/') . '/';
-
-        $total_scanned = count($items);
-        $inserted_count = 0;
-        $skipped_count = 0;
-
-        foreach ($items as $item) {
-            $slug = strtolower(trim(wp_parse_url($item, PHP_URL_PATH) ?? $item, '/'));
-            if (empty($slug)) {
-                continue;
-            }
-
-            $matched_keyword = self::detect_area_from_string($slug);
-
-            if (!$matched_keyword) {
-                continue;
-            }
-
-            $keyword = sanitize_key($matched_keyword);
-
-            if (isset($existing_map[$keyword])) {
-                $skipped_count++;
-                continue;
-            }
-
-            $area_name = ucwords(str_replace('-', ' ', $keyword));
-            $destination_url = $base_url . $keyword . '/';
-
-            $result = $wpdb->insert(
-                $table,
-                [
-                    'keyword'         => $keyword,
-                    'area_name'       => $area_name,
-                    'destination_url' => esc_url_raw($destination_url),
-                ],
-                ['%s', '%s', '%s']
-            );
-
-            if ($result) {
-                $inserted_count++;
-                $existing_map[$keyword] = true;
-            }
-        }
-
-        CTA_Resolver::clear_cache();
-
-        return [
-            'total_scanned' => $total_scanned,
-            'inserted'      => $inserted_count,
-            'skipped'       => $skipped_count,
-        ];
     }
 
     /**
