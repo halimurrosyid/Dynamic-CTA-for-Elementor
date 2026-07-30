@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class GitHub_Updater
- * Enables automatic 1-click plugin updates directly inside WordPress dashboard from GitHub releases.
+ * Fully automated WordPress dashboard update checker powered by GitHub Releases & Raw Branch fallback.
  */
 class GitHub_Updater {
 
@@ -34,7 +34,7 @@ class GitHub_Updater {
     }
 
     /**
-     * Fetch latest release info from GitHub API
+     * Get remote plugin information (checks Releases API first, falls back to Raw Main branch)
      *
      * @return object|null
      */
@@ -43,9 +43,9 @@ class GitHub_Updater {
             return $this->github_response;
         }
 
-        $url = "https://api.github.com/repos/{$this->github_username}/{$this->github_repo}/releases/latest";
-
-        $response = wp_remote_get($url, [
+        // 1. Try Releases API
+        $release_url = "https://api.github.com/repos/{$this->github_username}/{$this->github_repo}/releases/latest";
+        $response = wp_remote_get($release_url, [
             'headers' => [
                 'Accept'     => 'application/vnd.github.v3+json',
                 'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url(),
@@ -53,23 +53,50 @@ class GitHub_Updater {
             'timeout' => 10,
         ]);
 
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-            return null;
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body);
+            if ($data && isset($data->tag_name)) {
+                $package_url = $data->zipball_url;
+                if (!empty($data->assets) && isset($data->assets[0]->browser_download_url)) {
+                    $package_url = $data->assets[0]->browser_download_url;
+                }
+
+                $this->github_response = (object) [
+                    'version'      => ltrim($data->tag_name, 'v'),
+                    'package'      => $package_url,
+                    'changelog'    => $data->body ? $data->body : 'Automatic update via GitHub.',
+                    'download_url' => $package_url,
+                ];
+                return $this->github_response;
+            }
         }
 
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body);
+        // 2. Fallback: Read raw header from main branch
+        $raw_url = "https://raw.githubusercontent.com/{$this->github_username}/{$this->github_repo}/main/dynamic-cta-elementor.php";
+        $raw_response = wp_remote_get($raw_url, ['timeout' => 10]);
 
-        if (!$data || !isset($data->tag_name)) {
-            return null;
+        if (!is_wp_error($raw_response) && wp_remote_retrieve_response_code($raw_response) === 200) {
+            $content = wp_remote_retrieve_body($raw_response);
+            if (preg_match('/Version:\s*([0-9\.]+)/i', $content, $matches)) {
+                $version = trim($matches[1]);
+                $package = "https://github.com/{$this->github_username}/{$this->github_repo}/archive/refs/heads/main.zip";
+
+                $this->github_response = (object) [
+                    'version'      => $version,
+                    'package'      => $package,
+                    'changelog'    => 'Automated update from main branch.',
+                    'download_url' => $package,
+                ];
+                return $this->github_response;
+            }
         }
 
-        $this->github_response = $data;
-        return $this->github_response;
+        return null;
     }
 
     /**
-     * Hook into WP update_plugins transient check
+     * Check if a new version is available on GitHub
      *
      * @param object $transient
      * @return object
@@ -79,26 +106,18 @@ class GitHub_Updater {
             return $transient;
         }
 
-        $repo_info = $this->get_repository_info();
-        if (!$repo_info) {
+        $info = $this->get_repository_info();
+        if (!$info) {
             return $transient;
         }
 
-        $remote_version = ltrim($repo_info->tag_name, 'v');
-        $current_version = DYNAMIC_CTA_VERSION;
-
-        if (version_compare($remote_version, $current_version, '>')) {
-            $package = $repo_info->zipball_url;
-            if (!empty($repo_info->assets) && isset($repo_info->assets[0]->browser_download_url)) {
-                $package = $repo_info->assets[0]->browser_download_url;
-            }
-
+        if (version_compare($info->version, DYNAMIC_CTA_VERSION, '>')) {
             $obj = new \stdClass();
             $obj->slug        = $this->plugin_slug;
             $obj->plugin      = $this->basename;
-            $obj->new_version = $remote_version;
+            $obj->new_version = $info->version;
             $obj->url         = "https://github.com/{$this->github_username}/{$this->github_repo}";
-            $obj->package     = $package;
+            $obj->package     = $info->package;
             $obj->icons       = [];
             $obj->banners     = [];
 
@@ -109,7 +128,7 @@ class GitHub_Updater {
     }
 
     /**
-     * Provide Plugin Info popup modal content inside WordPress dashboard
+     * Display details modal inside WordPress Dashboard
      *
      * @param mixed $result
      * @param string $action
@@ -125,30 +144,28 @@ class GitHub_Updater {
             return $result;
         }
 
-        $repo_info = $this->get_repository_info();
-        if (!$repo_info) {
+        $info = $this->get_repository_info();
+        if (!$info) {
             return $result;
         }
-
-        $remote_version = ltrim($repo_info->tag_name, 'v');
 
         $plugin_info = new \stdClass();
         $plugin_info->name           = 'Dynamic CTA for Elementor';
         $plugin_info->slug           = $this->plugin_slug;
-        $plugin_info->version        = $remote_version;
+        $plugin_info->version        = $info->version;
         $plugin_info->author         = '<a href="https://indahweb.com/">Mujaddid Halimurrosyid</a>';
         $plugin_info->homepage       = "https://github.com/{$this->github_username}/{$this->github_repo}";
-        $plugin_info->download_link  = $repo_info->zipball_url;
+        $plugin_info->download_link  = $info->download_url;
         $plugin_info->sections       = [
-            'description' => nl2br(esc_html($repo_info->body ? $repo_info->body : 'Dynamic CTA for Elementor release.')),
-            'changelog'   => '<h4>' . esc_html($repo_info->tag_name) . '</h4>' . nl2br(esc_html($repo_info->body)),
+            'description' => 'Dynamic area-based CTA link migration plugin for Elementor Pro.',
+            'changelog'   => nl2br(esc_html($info->changelog)),
         ];
 
         return $plugin_info;
     }
 
     /**
-     * Ensure correct destination directory name after update installation
+     * Fix destination directory after GitHub zip unzipping
      *
      * @param bool $true
      * @param array $hook_extra
@@ -159,8 +176,12 @@ class GitHub_Updater {
         global $wp_filesystem;
 
         $proper_folder = WP_PLUGIN_DIR . '/' . $this->plugin_slug;
-        $wp_filesystem->move($result['destination'], $proper_folder);
-        $result['destination'] = $proper_folder;
+        
+        // Move unzipped directory to match plugin slug directory name
+        if ($result['destination'] !== $proper_folder) {
+            $wp_filesystem->move($result['destination'], $proper_folder);
+            $result['destination'] = $proper_folder;
+        }
 
         return $result;
     }

@@ -1,0 +1,49 @@
+name: Automatic Plugin Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Auto Release on Version Bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Extract Version from Plugin File
+        id: get_version
+        run: |
+          VERSION=$(grep "Version:" dynamic-cta-elementor.php | awk '{print $3}' | tr -d '\r')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Plugin Version detected: $VERSION"
+
+      - name: Check if Git Tag Exists
+        id: check_tag
+        run: |
+          git fetch --tags
+          if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
+            echo "TAG_EXISTS=true" >> $GITHUB_ENV
+            echo "Tag v${{ env.VERSION }} already exists. Skipping release creation."
+          else
+            echo "TAG_EXISTS=false" >> $GITHUB_ENV
+            echo "New Tag v${{ env.VERSION }} needed."
+          fi
+
+      - name: Create Git Tag and GitHub Release
+        if: env.TAG_EXISTS == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "v${{ env.VERSION }}"
+          name: "Dynamic CTA for Elementor v${{ env.VERSION }}"
+          body: |
+            Automatic Release for Dynamic CTA for Elementor v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
