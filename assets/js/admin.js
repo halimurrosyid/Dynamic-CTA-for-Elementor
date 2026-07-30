@@ -103,19 +103,67 @@
             });
         });
 
-        // Auto Detect Scan Button
-        $('.btn-run-auto-detect').on('click', function() {
-            var $btn = $(this);
-            var origHtml = $btn.html();
+        // Clear All Mappings
+        $('.btn-clear-all-mappings').on('click', function() {
+            if (!confirm('Are you sure you want to clear ALL area mappings? This will purge the table completely.')) {
+                return;
+            }
 
-            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> ' + dynamic_cta_admin.strings.scanning);
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Clearing...');
+
+            $.post(dynamic_cta_admin.ajax_url, {
+                action: 'dynamic_cta_clear_all_mappings',
+                nonce: dynamic_cta_admin.nonce
+            }, function(res) {
+                $btn.prop('disabled', false).text('Clear All Mappings');
+                if (res.success) {
+                    showNotice(res.data.message, 'success');
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    alert(res.data.message || 'Failed to clear mappings.');
+                }
+            });
+        });
+
+        // Open Auto Detect Modal
+        $('.btn-open-auto-detect-modal').on('click', function() {
+            $('#modal-auto-detect').fadeIn('fast');
+        });
+
+        // Toggle Sitemap URL input field
+        $('input[name="scan_source"]').on('change', function() {
+            if ($(this).val() === 'sitemap') {
+                $('#group-sitemap-url').slideDown('fast');
+            } else {
+                $('#group-sitemap-url').slideUp('fast');
+            }
+        });
+
+        // Submit Auto Detect AJAX
+        $('.btn-submit-auto-detect').on('click', function() {
+            var $btn = $(this);
+            var scanSource = $('input[name="scan_source"]:checked').val();
+            var sitemapUrl = $('#field-sitemap-url').val();
+
+            if (scanSource === 'sitemap' && !sitemapUrl) {
+                alert('Please enter a valid XML Sitemap URL.');
+                return;
+            }
+
+            $btn.prop('disabled', true).text('Scanning...');
 
             $.post(dynamic_cta_admin.ajax_url, {
                 action: 'dynamic_cta_auto_detect',
-                nonce: dynamic_cta_admin.nonce
+                nonce: dynamic_cta_admin.nonce,
+                scan_source: scanSource,
+                sitemap_url: sitemapUrl
             }, function(res) {
-                $btn.prop('disabled', false).html(origHtml);
+                $btn.prop('disabled', false).text('Start Scanning');
                 if (res.success) {
+                    $('#modal-auto-detect').fadeOut('fast');
                     showNotice(res.data.message, 'success');
                     setTimeout(function() {
                         location.reload();
@@ -124,7 +172,7 @@
                     alert(res.data.message || 'Auto-detection failed.');
                 }
             }).fail(function() {
-                $btn.prop('disabled', false).html(origHtml);
+                $btn.prop('disabled', false).text('Start Scanning');
                 alert('Auto-detection request failed.');
             });
         });

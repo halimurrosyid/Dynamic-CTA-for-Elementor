@@ -28,7 +28,7 @@ class Settings_Page {
         register_setting('dynamic_cta_settings_group', 'dynamic_cta_default_url', [
             'type'              => 'string',
             'sanitize_callback' => 'esc_url_raw',
-            'default'           => 'https://jasawifi.com/iconnet/',
+            'default'           => 'https://your-destination-site.com/target-path/',
         ]);
 
         register_setting('dynamic_cta_settings_group', 'dynamic_cta_open_link', [
@@ -77,7 +77,7 @@ class Settings_Page {
             wp_die(__('You do not have sufficient permissions to access this page.', 'dynamic-cta-elementor'));
         }
 
-        $default_url     = get_option('dynamic_cta_default_url', 'https://jasawifi.com/iconnet/');
+        $default_url     = get_option('dynamic_cta_default_url', 'https://your-destination-site.com/target-path/');
         $open_link       = get_option('dynamic_cta_open_link', '_self');
         $enable_cache     = get_option('dynamic_cta_enable_cache', 'yes');
         $cache_lifetime = get_option('dynamic_cta_cache_lifetime', 12);
@@ -113,12 +113,12 @@ class Settings_Page {
                         <table class="form-table" role="presentation">
                             <tr>
                                 <th scope="row">
-                                    <label for="dynamic_cta_default_url"><?php esc_html_e('Default URL', 'dynamic-cta-elementor'); ?></label>
+                                    <label for="dynamic_cta_default_url"><?php esc_html_e('Destination Base / Default URL', 'dynamic-cta-elementor'); ?></label>
                                 </th>
                                 <td>
                                     <input type="url" name="dynamic_cta_default_url" id="dynamic_cta_default_url" value="<?php echo esc_attr($default_url); ?>" class="large-text" required>
                                     <p class="description">
-                                        <?php esc_html_e('Fallback URL to use when no area keyword matches post slug, category, or tag.', 'dynamic-cta-elementor'); ?>
+                                        <?php esc_html_e('Universal target URL where area traffic will be directed (e.g. https://jasawifi.com/iconnet/ or https://newdomain.com/landing/). Used as fallback when no area matches.', 'dynamic-cta-elementor'); ?>
                                     </p>
                                 </td>
                             </tr>
