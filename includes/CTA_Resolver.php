@@ -7,32 +7,22 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class CTA_Resolver
- * Resolves destination URLs dynamically according to Post Slug, Category, and Tag.
+ * High-performance Multi-Layer Smart Resolver for dynamic CTA destination URLs.
  */
 class CTA_Resolver {
 
     /**
-     * Resolves the Dynamic CTA URL for a given post or current page.
+     * Resolves the Dynamic CTA URL for a given post or current page request.
      *
      * @param int|null $post_id
      * @return string
      */
     public static function get_cta_url(?int $post_id = null): string {
-        if (!$post_id) {
-            $post_id = get_queried_object_id();
-            if (!$post_id) {
-                $post_id = get_the_ID();
-            }
-        }
-
         $default_url = get_option('dynamic_cta_default_url', 'https://jasawifi.com/iconnet/');
         if (empty($default_url)) {
             $default_url = 'https://jasawifi.com/iconnet/';
         }
-
-        if (!$post_id || !is_singular()) {
-            return esc_url_raw($default_url);
-        }
+        $base_url = rtrim($default_url, '/') . '/';
 
         $enable_cache = get_option('dynamic_cta_enable_cache', 'yes');
         $cache_lifetime_hours = (int) get_option('dynamic_cta_cache_lifetime', '12');
@@ -40,7 +30,18 @@ class CTA_Resolver {
             $cache_lifetime_hours = 12;
         }
 
-        $transient_key = 'dcta_url_' . $post_id;
+        // Determine current URL path
+        $current_path = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
+        $current_path = trim(wp_parse_url($current_path, PHP_URL_PATH) ?? '', '/');
+
+        if (!$post_id) {
+            $post_id = get_queried_object_id();
+            if (!$post_id) {
+                $post_id = get_the_ID();
+            }
+        }
+
+        $transient_key = 'dcta_url_' . md5($current_path . '_' . $post_id);
 
         if ($enable_cache === 'yes') {
             $cached_url = get_transient($transient_key);
@@ -49,53 +50,89 @@ class CTA_Resolver {
             }
         }
 
-        // Fetch all active mappings from DB
-        $mappings = self::get_all_mappings();
-        if (empty($mappings)) {
-            return esc_url_raw($default_url);
-        }
-
         $resolved_url = null;
-        $post = get_post($post_id);
 
-        if ($post) {
-            // 1. Check Post Slug
-            $slug = strtolower($post->post_name);
-            $resolved_url = self::match_keyword($slug, $mappings);
+        // LAYER 1: Custom Database Mappings Overrides (if specified in Admin Area Mapping)
+        $mappings = self::get_all_mappings();
+        if (!empty($mappings)) {
+            // Check current path against custom mapping keywords
+            $resolved_url = self::match_custom_mapping($current_path, $mappings);
 
-            // 2. Check Categories if not matched by slug
-            if (!$resolved_url) {
-                $categories = get_the_category($post_id);
-                if ($categories && !is_wp_error($categories)) {
-                    foreach ($categories as $cat) {
-                        $resolved_url = self::match_keyword(strtolower($cat->slug), $mappings);
-                        if (!$resolved_url) {
-                            $resolved_url = self::match_keyword(strtolower($cat->name), $mappings);
-                        }
-                        if ($resolved_url) {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // 3. Check Tags if not matched by slug or category
-            if (!$resolved_url) {
-                $tags = get_the_tags($post_id);
-                if ($tags && !is_wp_error($tags)) {
-                    foreach ($tags as $tag) {
-                        $resolved_url = self::match_keyword(strtolower($tag->slug), $mappings);
-                        if (!$resolved_url) {
-                            $resolved_url = self::match_keyword(strtolower($tag->name), $mappings);
-                        }
-                        if ($resolved_url) {
-                            break;
-                        }
+            // Check post title / slug against custom mappings
+            if (!$resolved_url && $post_id) {
+                $post = get_post($post_id);
+                if ($post) {
+                    $resolved_url = self::match_custom_mapping($post->post_name, $mappings);
+                    if (!$resolved_url) {
+                        $resolved_url = self::match_custom_mapping($post->post_title, $mappings);
                     }
                 }
             }
         }
 
+        // LAYER 2: Direct URL Path Segment Extraction (e.g. /promo/bandung/ or /kota/bekasi/)
+        if (!$resolved_url && !empty($current_path)) {
+            $segments = explode('/', $current_path);
+            foreach (array_reverse($segments) as $segment) {
+                $matched_area = Scanner::detect_area_from_string($segment);
+                if ($matched_area) {
+                    $resolved_url = $base_url . $matched_area . '/';
+                    break;
+                }
+            }
+        }
+
+        // LAYER 3: Post Context (Slug, Title, Categories, Tags)
+        if (!$resolved_url && $post_id) {
+            $post = get_post($post_id);
+            if ($post) {
+                // Check post slug (e.g. pasang-iconnet-bandung)
+                $matched_area = Scanner::detect_area_from_string($post->post_name);
+
+                // Check post title (e.g. Promo Iconnet Bandung Terbaru)
+                if (!$matched_area) {
+                    $matched_area = Scanner::detect_area_from_string(strtolower($post->post_title));
+                }
+
+                // Check Categories
+                if (!$matched_area) {
+                    $categories = get_the_category($post_id);
+                    if ($categories && !is_wp_error($categories)) {
+                        foreach ($categories as $cat) {
+                            $matched_area = Scanner::detect_area_from_string(strtolower($cat->slug));
+                            if (!$matched_area) {
+                                $matched_area = Scanner::detect_area_from_string(strtolower($cat->name));
+                            }
+                            if ($matched_area) {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Check Tags
+                if (!$matched_area) {
+                    $tags = get_the_tags($post_id);
+                    if ($tags && !is_wp_error($tags)) {
+                        foreach ($tags as $tag) {
+                            $matched_area = Scanner::detect_area_from_string(strtolower($tag->slug));
+                            if (!$matched_area) {
+                                $matched_area = Scanner::detect_area_from_string(strtolower($tag->name));
+                            }
+                            if ($matched_area) {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ($matched_area) {
+                    $resolved_url = $base_url . $matched_area . '/';
+                }
+            }
+        }
+
+        // LAYER 4: Fallback Default URL
         $final_url = $resolved_url ? $resolved_url : $default_url;
         $final_url = esc_url_raw($final_url);
 
@@ -107,18 +144,18 @@ class CTA_Resolver {
     }
 
     /**
-     * Match input string against keyword mappings.
-     * Selects longest matching keyword for highest specificity.
+     * Match custom mappings against subject string
      *
      * @param string $subject
      * @param array $mappings
      * @return string|null
      */
-    private static function match_keyword(string $subject, array $mappings): ?string {
+    private static function match_custom_mapping(string $subject, array $mappings): ?string {
         if (empty($subject)) {
             return null;
         }
 
+        $subject = strtolower($subject);
         $best_match = null;
         $best_len = 0;
 
@@ -128,7 +165,6 @@ class CTA_Resolver {
                 continue;
             }
 
-            // Check if keyword is contained within subject slug/name as word/hyphen boundary or substring
             if (str_contains($subject, $keyword)) {
                 $len = strlen($keyword);
                 if ($len > $best_len) {
@@ -142,7 +178,7 @@ class CTA_Resolver {
     }
 
     /**
-     * Get all mappings with transient caching
+     * Get all custom mappings with transient caching
      *
      * @return array
      */
@@ -153,7 +189,6 @@ class CTA_Resolver {
         if ($mappings === false) {
             global $wpdb;
             $table = DB::get_mappings_table();
-            // Check if table exists
             if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) !== $table) {
                 return [];
             }
