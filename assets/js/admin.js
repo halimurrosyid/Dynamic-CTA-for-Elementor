@@ -128,42 +128,19 @@
             });
         });
 
-        // Open Auto Detect Modal
-        $('.btn-open-auto-detect-modal').on('click', function() {
-            $('#modal-auto-detect').fadeIn('fast');
-        });
-
-        // Toggle Sitemap URL input field
-        $('input[name="scan_source"]').on('change', function() {
-            if ($(this).val() === 'sitemap') {
-                $('#group-sitemap-url').slideDown('fast');
-            } else {
-                $('#group-sitemap-url').slideUp('fast');
-            }
-        });
-
-        // Submit Auto Detect AJAX
-        $('.btn-submit-auto-detect').on('click', function() {
+        // Direct 1-Click Auto Detect Scan Button
+        $('.btn-run-auto-detect').on('click', function() {
             var $btn = $(this);
-            var scanSource = $('input[name="scan_source"]:checked').val();
-            var sitemapUrl = $('#field-sitemap-url').val();
+            var origHtml = $btn.html();
 
-            if (scanSource === 'sitemap' && !sitemapUrl) {
-                alert('Please enter a valid XML Sitemap URL.');
-                return;
-            }
-
-            $btn.prop('disabled', true).text('Scanning...');
+            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> ' + dynamic_cta_admin.strings.scanning);
 
             $.post(dynamic_cta_admin.ajax_url, {
                 action: 'dynamic_cta_auto_detect',
-                nonce: dynamic_cta_admin.nonce,
-                scan_source: scanSource,
-                sitemap_url: sitemapUrl
+                nonce: dynamic_cta_admin.nonce
             }, function(res) {
-                $btn.prop('disabled', false).text('Start Scanning');
+                $btn.prop('disabled', false).html(origHtml);
                 if (res.success) {
-                    $('#modal-auto-detect').fadeOut('fast');
                     showNotice(res.data.message, 'success');
                     setTimeout(function() {
                         location.reload();
@@ -172,7 +149,7 @@
                     alert(res.data.message || 'Auto-detection failed.');
                 }
             }).fail(function() {
-                $btn.prop('disabled', false).text('Start Scanning');
+                $btn.prop('disabled', false).html(origHtml);
                 alert('Auto-detection request failed.');
             });
         });

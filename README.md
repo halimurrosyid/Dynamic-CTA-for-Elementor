@@ -1,6 +1,6 @@
 # Dynamic CTA for Elementor
 
-![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
 ![WordPress](https://img.shields.io/badge/wordpress-6.0%2B-blue.svg)
 ![PHP](https://img.shields.io/badge/php-8.1%2B-purple.svg)
 ![Elementor](https://img.shields.io/badge/elementor-pro-red.svg)
@@ -23,15 +23,6 @@ Elementor Popup Image / Button Link
          ↓ Dynamic Tag ("Dynamic CTA URL")
 Output URL: https://jasawifi.com/iconnet/bandung/
 ```
-
----
-
-## 🔥 What's New in v1.0.2
-
-- 🛣️ **Direct URL Path Segment Extraction**: Converts URLs like `/promo/bandung/` or `/kota/bandung/` directly to `https://jasawifi.com/iconnet/bandung/`.
-- 🗺️ **XML Sitemap Scanner**: Support for Rank Math, Yoast, and WP Core XML sitemaps.
-- 🎯 **500+ Location Precision**: Strict dictionary matching for Indonesian cities, regencies, and districts (filters out non-area words).
-- 🌐 **100% Universal**: Fully configurable Target Destination Base URL for any site.
 
 ---
 

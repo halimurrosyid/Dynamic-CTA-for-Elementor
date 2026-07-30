@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Area_Mapping_Page
- * Renders Area Mapping Admin Interface with XML Sitemap Scanner, WordPress Post Scanner, and Clear All feature.
+ * Renders Area Mapping Admin Interface with 1-click internal Auto Detect and Clear All features.
  */
 class Area_Mapping_Page {
 
@@ -58,8 +58,8 @@ class Area_Mapping_Page {
                     <button type="button" class="button button-primary btn-open-add-modal">
                         <span class="dashicons dashicons-plus-alt2"></span> <?php esc_html_e('Add New Mapping', 'dynamic-cta-elementor'); ?>
                     </button>
-                    <button type="button" class="button button-secondary btn-open-auto-detect-modal">
-                        <span class="dashicons dashicons-update"></span> <?php esc_html_e('Generate Mapping (Auto Detect / Sitemap)', 'dynamic-cta-elementor'); ?>
+                    <button type="button" class="button button-secondary btn-run-auto-detect">
+                        <span class="dashicons dashicons-update"></span> <?php esc_html_e('Generate Mapping (Auto Detect)', 'dynamic-cta-elementor'); ?>
                     </button>
                     <button type="button" class="button button-secondary button-link-delete btn-clear-all-mappings">
                         <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Clear All Mappings', 'dynamic-cta-elementor'); ?>
@@ -110,7 +110,7 @@ class Area_Mapping_Page {
 
                         <div class="dcta-form-group">
                             <label for="field-destination-url"><strong><?php esc_html_e('Destination URL', 'dynamic-cta-elementor'); ?> *</strong></label>
-                            <input type="url" name="destination_url" id="field-destination-url" class="large-text" placeholder="https://your-destination-site.com/target-path/bandung/" required>
+                            <input type="url" name="destination_url" id="field-destination-url" class="large-text" placeholder="https://jasawifi.com/iconnet/bandung/" required>
                             <p class="description"><?php esc_html_e('Target URL where traffic will be directed.', 'dynamic-cta-elementor'); ?></p>
                         </div>
                     </form>
@@ -118,41 +118,6 @@ class Area_Mapping_Page {
                 <div class="dcta-modal-footer">
                     <button type="button" class="button button-secondary dcta-modal-close"><?php esc_html_e('Cancel', 'dynamic-cta-elementor'); ?></button>
                     <button type="button" class="button button-primary btn-save-mapping-submit"><?php esc_html_e('Save Mapping', 'dynamic-cta-elementor'); ?></button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Auto Detect & Sitemap Scanner Modal -->
-        <div id="modal-auto-detect" class="dcta-modal-overlay" style="display:none;">
-            <div class="dcta-modal-container">
-                <div class="dcta-modal-header">
-                    <h3><?php esc_html_e('Auto Detect Area Mappings', 'dynamic-cta-elementor'); ?></h3>
-                    <button type="button" class="dcta-modal-close">&times;</button>
-                </div>
-                <div class="dcta-modal-body">
-                    <form id="dcta-auto-detect-form">
-                        <div class="dcta-form-group">
-                            <label><strong><?php esc_html_e('Scan Source Mode', 'dynamic-cta-elementor'); ?></strong></label>
-                            <label><input type="radio" name="scan_source" value="posts" checked> <?php esc_html_e('WordPress Posts & Categories (Internal)', 'dynamic-cta-elementor'); ?></label><br>
-                            <label><input type="radio" name="scan_source" value="sitemap"> <?php esc_html_e('XML Sitemap URL (Recommended for high accuracy)', 'dynamic-cta-elementor'); ?></label>
-                        </div>
-
-                        <div class="dcta-form-group" id="group-sitemap-url" style="display:none;">
-                            <label for="field-sitemap-url"><strong><?php esc_html_e('XML Sitemap URL', 'dynamic-cta-elementor'); ?></strong></label>
-                            <input type="url" name="sitemap_url" id="field-sitemap-url" class="large-text" placeholder="e.g. https://iconnet.biz.id/post-sitemap.xml">
-                            <p class="description"><?php esc_html_e('URL to Rank Math, Yoast, or WP Core XML sitemap.', 'dynamic-cta-elementor'); ?></p>
-                        </div>
-
-                        <div class="dcta-form-group">
-                            <p class="description">
-                                💡 <em><?php esc_html_e('The scanner matches permalinks strictly against a dictionary of 500+ Indonesian cities/regencies to ensure high precision.', 'dynamic-cta-elementor'); ?></em>
-                            </p>
-                        </div>
-                    </form>
-                </div>
-                <div class="dcta-modal-footer">
-                    <button type="button" class="button button-secondary dcta-modal-close"><?php esc_html_e('Cancel', 'dynamic-cta-elementor'); ?></button>
-                    <button type="button" class="button button-primary btn-submit-auto-detect"><?php esc_html_e('Start Scanning', 'dynamic-cta-elementor'); ?></button>
                 </div>
             </div>
         </div>
@@ -238,7 +203,6 @@ class Area_Mapping_Page {
         global $wpdb;
         $table = DB::get_mappings_table();
 
-        // Check duplicate keyword
         if ($id > 0) {
             $duplicate = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$table} WHERE keyword = %s AND id != %d", $keyword, $id));
         } else {
@@ -317,7 +281,7 @@ class Area_Mapping_Page {
     }
 
     /**
-     * AJAX Auto Detect Scan (Supports XML Sitemap & WP Posts)
+     * AJAX Auto Detect Scan (1-Click Internal Database Scan)
      */
     public static function ajax_auto_detect(): void {
         check_ajax_referer('dynamic_cta_admin_nonce', 'nonce');
@@ -326,18 +290,7 @@ class Area_Mapping_Page {
             wp_send_json_error(['message' => __('Unauthorized permission.', 'dynamic-cta-elementor')]);
         }
 
-        $scan_source = isset($_POST['scan_source']) ? sanitize_text_field($_POST['scan_source']) : 'posts';
-
-        if ($scan_source === 'sitemap') {
-            $sitemap_url = isset($_POST['sitemap_url']) ? esc_url_raw($_POST['sitemap_url']) : '';
-            $result = Scanner::scan_sitemap($sitemap_url);
-        } else {
-            $result = Scanner::scan_posts_and_taxonomies();
-        }
-
-        if (isset($result['error'])) {
-            wp_send_json_error(['message' => $result['error']]);
-        }
+        $result = Scanner::scan_posts_and_taxonomies();
 
         $message = sprintf(
             __('Scan complete! Total scanned items: %d. New valid area mappings inserted: %d. Skipped existing: %d.', 'dynamic-cta-elementor'),
