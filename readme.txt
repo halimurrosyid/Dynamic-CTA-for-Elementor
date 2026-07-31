@@ -1,11 +1,11 @@
 === Dynamic CTA for Elementor ===
 Contributors: halimurrosyid
 Donate link: https://indahweb.com/
-Tags: elementor, dynamic tag, cta, migration, popup link, redis cache
+Tags: elementor, dynamic tag, cta, migration, popup link, custom area mapping priority
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 1.0.8
+Stable tag: 1.0.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,37 +17,23 @@ Universal area-based CTA link migration plugin for Elementor Pro. Dynamically ro
 
 == Changelog ==
 
+= 1.0.9 =
+* Fixed Custom Area Mappings Priority: Ensures exact destination URLs mapped in database (e.g. `kab-pekalongan`) ALWAYS take 100% priority over default fallback URL generation.
+
 = 1.0.8 =
-* Added multi-day comparison analytics (Today vs Yesterday growth %, Last 7 vs Prev 7 Days growth %, Last 30 Days).
-* Added interactive daily trend bar chart visualizer (7, 14, 30 days filter).
-* Added top performing areas & top articles rank breakdown.
-* Added 5-second anti-spam click deduplication and automatic DB log pruning (>60 days) to guarantee zero performance overhead.
+* Added multi-day click comparison analytics, trend visualizer, anti-spam deduplication, and auto log pruning.
 
 = 1.0.7 =
-* Fixed Redis & Memcached Object Cache transient invalidation with dynamic cache versioning.
-* Fixed Default Base URL setting save auto-purge cache trigger.
-* Added Regex Word Boundary area detection to prevent false positive matching on short keywords.
-* Made frontend JS tracker regex dynamic based on custom base URL path.
+* Fixed Redis object cache invalidation for custom default URLs.
 
 = 1.0.6 =
 * Added Live Preview Mode support inside Elementor Editor.
-* Enhanced Redis & Memcached Object Cache flushing compatibility.
-* Added optional `[dynamic_cta_url]` shortcode support.
 
 = 1.0.5 =
 * Streamlined Area Mapping interface: Displaying explicit "Source URL (Web Saat Ini)" and "Destination URL (Web Tujuan)" columns.
 
 = 1.0.4 =
-* Added "Import Destination Sitemap" feature: Paste your NEW destination site's XML sitemap URL (e.g. `https://jasawifi.com/post-sitemap.xml`) to automatically import and map all landing page URLs instantly without manual typing!
-
-= 1.0.3 =
-* Simplified user experience: 1-click internal Auto Detect scan directly queries WordPress database.
-
-= 1.0.2 =
-* Added Multi-Layer Smart URL Path Segment Resolver (e.g. `/promo/bandung/` automatically maps to `https://jasawifi.com/iconnet/bandung/`).
-
-= 1.0.1 =
-* Added 500+ Indonesian location dictionary for strict high-accuracy area detection.
+* Added "Import Destination Sitemap" feature.
 
 = 1.0.0 =
-* Initial release with Elementor Dynamic Tag, Area Mapping CRUD, Auto-Detect Scanner, CSV Import/Export, Transient Caching, Click Statistics, and GitHub Auto-Updater.
+* Initial release.

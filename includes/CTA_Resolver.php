@@ -7,23 +7,10 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class CTA_Resolver
- * High-performance Multi-Layer Smart Resolver for dynamic CTA destination URLs with Redis/Memcached & Elementor Preview support.
+ * High-performance Multi-Layer Smart Resolver for dynamic CTA destination URLs.
+ * Ensures Database Area Mappings ALWAYS take priority over fallback Base URL patterns.
  */
 class CTA_Resolver {
-
-    /**
-     * Get active cache version string for transient key prefixing
-     *
-     * @return string
-     */
-    public static function get_cache_version(): string {
-        $ver = get_option('dynamic_cta_cache_version', '');
-        if (empty($ver)) {
-            $ver = (string) time();
-            update_option('dynamic_cta_cache_version', $ver, false);
-        }
-        return $ver;
-    }
 
     /**
      * Resolves the Dynamic CTA URL for a given post or current page request.
@@ -60,8 +47,7 @@ class CTA_Resolver {
             }
         }
 
-        $cache_ver = self::get_cache_version();
-        $transient_key = 'dcta_' . $cache_ver . '_' . md5($current_path . '_' . (int)$post_id);
+        $transient_key = 'dcta_url_' . md5($current_path . '_' . $post_id);
 
         if ($enable_cache === 'yes') {
             $cached_url = get_transient($transient_key);
@@ -70,89 +56,92 @@ class CTA_Resolver {
             }
         }
 
-        $resolved_url = null;
-
-        // LAYER 1: Custom Database Mappings Overrides (if specified in Admin Area Mapping)
+        // Build Custom DB Mappings dictionary
         $mappings = self::get_all_mappings();
+        $mapping_dict = [];
         if (!empty($mappings)) {
-            // Check current path against custom mapping keywords
-            $resolved_url = self::match_custom_mapping($current_path, $mappings);
-
-            // Check post title / slug against custom mappings
-            if (!$resolved_url && $post_id) {
-                $post = get_post($post_id);
-                if ($post) {
-                    $resolved_url = self::match_custom_mapping($post->post_name, $mappings);
-                    if (!$resolved_url) {
-                        $resolved_url = self::match_custom_mapping($post->post_title, $mappings);
-                    }
+            foreach ($mappings as $row) {
+                $kw = strtolower(trim($row->keyword));
+                if (!empty($kw)) {
+                    $mapping_dict[$kw] = $row->destination_url;
                 }
             }
         }
 
-        // LAYER 2: Direct URL Path Segment Extraction (e.g. /promo/bandung/ or /harga/bekasi/)
-        if (!$resolved_url && !empty($current_path)) {
+        $detected_keyword = null;
+        $resolved_url     = null;
+
+        // STEP 1: Direct Path Segments Inspection (e.g. /area/pekalongan/ or /promo/bandung/)
+        if (!empty($current_path)) {
             $segments = explode('/', $current_path);
             foreach (array_reverse($segments) as $segment) {
-                $matched_area = Scanner::detect_area_from_string($segment);
-                if ($matched_area) {
-                    $resolved_url = $base_url . $matched_area . '/';
+                $segment_kw = Scanner::detect_area_from_string($segment);
+                if ($segment_kw) {
+                    $detected_keyword = $segment_kw;
                     break;
                 }
             }
         }
 
-        // LAYER 3: Post Context (Slug, Title, Categories, Tags)
-        if (!$resolved_url && $post_id) {
+        // STEP 2: Post Context (Slug, Title, Categories, Tags)
+        if (!$detected_keyword && $post_id) {
             $post = get_post($post_id);
             if ($post) {
-                // Check post slug (e.g. pasang-iconnet-bandung)
-                $matched_area = Scanner::detect_area_from_string($post->post_name);
-
-                // Check post title (e.g. Promo Iconnet Bandung Terbaru)
-                if (!$matched_area) {
-                    $matched_area = Scanner::detect_area_from_string(strtolower($post->post_title));
+                $detected_keyword = Scanner::detect_area_from_string($post->post_name);
+                if (!$detected_keyword) {
+                    $matched_custom = self::match_custom_mapping($post->post_name, $mappings);
+                    if ($matched_custom) {
+                        $resolved_url = $matched_custom;
+                    } else {
+                        $detected_keyword = Scanner::detect_area_from_string(strtolower($post->post_title));
+                    }
                 }
 
-                // Check Categories
-                if (!$matched_area) {
+                if (!$detected_keyword && !$resolved_url) {
                     $categories = get_the_category($post_id);
                     if ($categories && !is_wp_error($categories)) {
                         foreach ($categories as $cat) {
-                            $matched_area = Scanner::detect_area_from_string(strtolower($cat->slug));
-                            if (!$matched_area) {
-                                $matched_area = Scanner::detect_area_from_string(strtolower($cat->name));
+                            $detected_keyword = Scanner::detect_area_from_string(strtolower($cat->slug));
+                            if (!$detected_keyword) {
+                                $detected_keyword = Scanner::detect_area_from_string(strtolower($cat->name));
                             }
-                            if ($matched_area) {
+                            if ($detected_keyword) {
                                 break;
                             }
                         }
                     }
                 }
 
-                // Check Tags
-                if (!$matched_area) {
+                if (!$detected_keyword && !$resolved_url) {
                     $tags = get_the_tags($post_id);
                     if ($tags && !is_wp_error($tags)) {
                         foreach ($tags as $tag) {
-                            $matched_area = Scanner::detect_area_from_string(strtolower($tag->slug));
-                            if (!$matched_area) {
-                                $matched_area = Scanner::detect_area_from_string(strtolower($tag->name));
+                            $detected_keyword = Scanner::detect_area_from_string(strtolower($tag->slug));
+                            if (!$detected_keyword) {
+                                $detected_keyword = Scanner::detect_area_from_string(strtolower($tag->name));
                             }
-                            if ($matched_area) {
+                            if ($detected_keyword) {
                                 break;
                             }
                         }
                     }
-                }
-
-                if ($matched_area) {
-                    $resolved_url = $base_url . $matched_area . '/';
                 }
             }
         }
 
-        // LAYER 4: Fallback Default URL
+        // STEP 3: PRIORITY CHECK - Does the detected keyword match a Custom DB Mapping?
+        if (!$resolved_url && $detected_keyword) {
+            $kw_lower = strtolower($detected_keyword);
+            if (isset($mapping_dict[$kw_lower]) && !empty($mapping_dict[$kw_lower])) {
+                // ALWAYS USE EXACT DESTINATION URL FROM DATABASE
+                $resolved_url = $mapping_dict[$kw_lower];
+            } else {
+                // Fallback to pattern generation: base_url + detected_keyword + '/'
+                $resolved_url = $base_url . $detected_keyword . '/';
+            }
+        }
+
+        // STEP 4: Fallback Default URL
         $final_url = $resolved_url ? $resolved_url : $default_url;
         $final_url = esc_url_raw($final_url);
 
@@ -164,7 +153,7 @@ class CTA_Resolver {
     }
 
     /**
-     * Match custom mappings against subject string with word boundary regex
+     * Match custom mappings against subject string
      *
      * @param string $subject
      * @param array $mappings
@@ -185,9 +174,7 @@ class CTA_Resolver {
                 continue;
             }
 
-            // Word boundary regex matching
-            $pattern = '/(?:^|[\s\/_\-\.])' . preg_quote($keyword, '/') . '(?:$|[\s\/_\-\.])/i';
-            if (preg_match($pattern, $subject)) {
+            if (str_contains($subject, $keyword)) {
                 $len = strlen($keyword);
                 if ($len > $best_len) {
                     $best_len = $len;
@@ -205,8 +192,7 @@ class CTA_Resolver {
      * @return array
      */
     public static function get_all_mappings(): array {
-        $cache_ver = self::get_cache_version();
-        $transient_key = 'dcta_' . $cache_ver . '_all_map';
+        $transient_key = 'dcta_all_mappings';
         $mappings = get_transient($transient_key);
 
         if ($mappings === false) {
@@ -227,17 +213,16 @@ class CTA_Resolver {
     }
 
     /**
-     * Clear CTA Transients Cache across MySQL & Object Cache (Redis/Memcached)
+     * Clear CTA Transients Cache (Compatible with Redis / Memcached / DB transients)
      */
     public static function clear_cache(): void {
-        update_option('dynamic_cta_cache_version', (string) time(), false);
+        delete_transient('dcta_all_mappings');
 
         global $wpdb;
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_dcta_%' OR option_name LIKE '_transient_timeout_dcta_%'");
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_dcta_url_%' OR option_name LIKE '_transient_timeout_dcta_url_%'");
 
         if (function_exists('wp_cache_flush')) {
             wp_cache_flush();
         }
     }
 }
-
