@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Scanner
- * Universal & High-Accuracy Area Scanner with Universal XML Sitemap Parsing & Collision Prevention.
+ * Universal & High-Accuracy Area Scanner with Title/Slug-Only Matching for Source URLs.
  */
 class Scanner {
 
@@ -132,7 +132,7 @@ class Scanner {
             $keyword   = sanitize_key($matched_keyword);
             $area_name = ucwords(str_replace('-', ' ', $keyword));
 
-            // Find matching source URL on current website
+            // Find matching source URL on current website STRICTLY by Post Title / Slug
             $source_url = self::find_matching_source_url($keyword);
 
             // Use REPLACE INTO to guarantee insertion/update regardless of existing state
@@ -167,28 +167,47 @@ class Scanner {
     }
 
     /**
-     * Find sample/matching source URL on current website for a given keyword
+     * Find matching source URL on current website STRICTLY by Post Title or Post Slug (Ignores body content)
      *
      * @param string $keyword
      * @return string
      */
     public static function find_matching_source_url(string $keyword): string {
-        $posts = get_posts([
-            'post_type'      => ['post', 'page'],
-            'post_status'    => 'publish',
-            'posts_per_page' => 1,
-            's'              => $keyword,
-            'fields'         => 'ids',
-        ]);
+        global $wpdb;
 
-        if (!empty($posts)) {
-            $permalink = get_permalink($posts[0]);
+        $keyword_clean = strtolower(trim($keyword));
+        if (empty($keyword_clean)) {
+            return esc_url_raw(home_url('/' . $keyword . '/'));
+        }
+
+        $like = '%' . $wpdb->esc_like($keyword_clean) . '%';
+
+        // Search Published Posts/Pages strictly by post_title or post_name (slug)
+        $post_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} 
+             WHERE post_status = 'publish' 
+             AND post_type IN ('post', 'page') 
+             AND (LOWER(post_name) LIKE %s OR LOWER(post_title) LIKE %s)
+             ORDER BY 
+                CASE 
+                    WHEN LOWER(post_name) = %s THEN 1 
+                    WHEN LOWER(post_title) = %s THEN 2
+                    WHEN LOWER(post_name) LIKE %s THEN 3
+                    ELSE 4
+                END ASC, 
+                ID DESC 
+             LIMIT 1",
+            $like, $like, $keyword_clean, $keyword_clean, $like
+        ));
+
+        if ($post_id) {
+            $permalink = get_permalink($post_id);
             if ($permalink) {
                 return esc_url_raw($permalink);
             }
         }
 
-        return esc_url_raw(home_url('/' . $keyword . '/'));
+        return esc_url_raw(home_url('/' . $keyword_clean . '/'));
     }
 
     /**
