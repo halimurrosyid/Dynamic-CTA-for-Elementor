@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Scanner
- * Universal & High-Accuracy Area Scanner with Source & Destination URL Mapping.
+ * Universal & High-Accuracy Area Scanner with Word-Boundary Collision Prevention.
  */
 class Scanner {
 
@@ -35,11 +35,11 @@ class Scanner {
         'lebak', 'rangkasbitung', 'bsd', 'bintaro', 'ciputat', 'pamulang', 'serpong', 'cikupa', 'balaraja',
 
         // Central Java & DIY (Jawa Tengah & Yogyakarta)
-        'semarang', 'kabupaten-semarang', 'ungaran', 'solo', 'surakarta', 'yogyakarta', 'jogja', 'sleman',
+        'semarang', 'kabupaten-semarang', 'kab-semarang', 'ungaran', 'solo', 'surakarta', 'yogyakarta', 'jogja', 'sleman',
         'bantul', 'kulonprogo', 'gunungkidul', 'wates', 'wonosari', 'klaten', 'boyolali', 'sragen',
         'karanganyar', 'sukoharjo', 'wonogiri', 'magelang', 'mungkid', 'temanggung', 'wonosobo', 'purworejo',
-        'kebumen', 'banyumas', 'purwokerto', 'cilacap', 'banjarnegara', 'pekalongan', 'batang', 'kendal',
-        'demak', 'kudus', 'jepara', 'pati', 'rembang', 'blora', 'grobogan', 'purwodadi', 'salatiga',
+        'kebumen', 'banyumas', 'purwokerto', 'cilacap', 'banjarnegara', 'pekalongan', 'kab-pekalongan', 'kabupaten-pekalongan', 'batang', 'kendal',
+        'demak', 'kudus', 'jepara', 'pati', 'rembang', 'blora', 'grobogan', 'purwodadi', 'salatiga', 'pemalang',
 
         // East Java (Jawa Timur)
         'surabaya', 'sidoarjo', 'gresik', 'malang', 'batu', 'kabupaten-malang', 'mojokerto', 'jombang',
@@ -54,7 +54,7 @@ class Scanner {
         // Sumatra
         'medan', 'deli-serdang', 'binjai', 'pematang-siantar', 'tebing-tinggi', 'kabanjahe',
         'palembang', 'lubuklinggau', 'prabumulih', 'pekanbaru', 'dumai', 'batam', 'tanjung-pinang',
-        'padang', 'bukittinggi', 'payakumbuh', 'pariaman', 'bandar-lampung', 'metro', 'lampung',
+        'padang', 'padang-panjang', 'bukittinggi', 'payakumbuh', 'pariaman', 'bandar-lampung', 'metro', 'lampung',
         'jambi', 'muaro-jambi', 'bengkulu', 'pangkal-pinang', 'bangka', 'belitung',
 
         // Kalimantan
@@ -241,7 +241,7 @@ class Scanner {
     }
 
     /**
-     * Detect area keyword STRICTLY from string using area dictionary
+     * Detect area keyword STRICTLY with Word Boundary matching to prevent collisions (e.g. 'malang' vs 'pemalang')
      *
      * @param string $subject
      * @return string|null
@@ -251,22 +251,27 @@ class Scanner {
             return null;
         }
 
-        $subject = strtolower($subject);
-        $best_match = null;
-        $best_len = 0;
+        $subject = strtolower(trim($subject, '/'));
+        $parts = explode('/', $subject);
+        $last_segment = end($parts);
 
-        foreach (self::$indonesian_areas as $area) {
-            $pattern = '/(?:^|[\s\/_\-\.])' . preg_quote($area, '/') . '(?:$|[\s\/_\-\.])/i';
+        // 1. Exact match on path segment (e.g. 'malang' or 'pemalang')
+        if (in_array($last_segment, self::$indonesian_areas, true)) {
+            return $last_segment;
+        }
+
+        // 2. Word/Hyphen Boundary Match on full string (longest area first)
+        $areas = self::$indonesian_areas;
+        usort($areas, fn($a, $b) => strlen($b) <=> strlen($a));
+
+        foreach ($areas as $area) {
+            $pattern = '/(?<=^|[-_\s\/])' . preg_quote($area, '/') . '(?=$|[-_\s\/])/i';
             if (preg_match($pattern, $subject)) {
-                $len = strlen($area);
-                if ($len > $best_len) {
-                    $best_len = $len;
-                    $best_match = $area;
-                }
+                return $area;
             }
         }
 
-        return $best_match;
+        return null;
     }
 
     /**

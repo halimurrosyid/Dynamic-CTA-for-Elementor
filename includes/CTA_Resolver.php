@@ -71,7 +71,7 @@ class CTA_Resolver {
         $detected_keyword = null;
         $resolved_url     = null;
 
-        // STEP 1: Direct Path Segments Inspection (e.g. /area/pekalongan/ or /promo/bandung/)
+        // STEP 1: Direct Path Segments Inspection (e.g. /area/malang/ or /promo/bandung/)
         if (!empty($current_path)) {
             $segments = explode('/', $current_path);
             foreach (array_reverse($segments) as $segment) {
@@ -174,7 +174,8 @@ class CTA_Resolver {
                 continue;
             }
 
-            if (str_contains($subject, $keyword)) {
+            $pattern = '/(?<=^|[-_\s\/])' . preg_quote($keyword, '/') . '(?=$|[-_\s\/])/i';
+            if (preg_match($pattern, $subject)) {
                 $len = strlen($keyword);
                 if ($len > $best_len) {
                     $best_len = $len;

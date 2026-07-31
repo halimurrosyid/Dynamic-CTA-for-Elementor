@@ -1,11 +1,11 @@
 === Dynamic CTA for Elementor ===
 Contributors: halimurrosyid
 Donate link: https://indahweb.com/
-Tags: elementor, dynamic tag, cta, migration, popup link, custom area mapping priority
+Tags: elementor, dynamic tag, cta, migration, popup link, word boundary matching
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 1.0.9
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,17 +17,12 @@ Universal area-based CTA link migration plugin for Elementor Pro. Dynamically ro
 
 == Changelog ==
 
-= 1.0.9 =
-* Fixed Custom Area Mappings Priority: Ensures exact destination URLs mapped in database (e.g. `kab-pekalongan`) ALWAYS take 100% priority over default fallback URL generation.
+= 1.1.0 =
+* Fixed Word Boundary & Substring Collision bug (e.g. `malang` inside `pemalang` or `kab-pekalongan` vs `pekalongan`).
+* Fixed Custom Area Mapping database priority over default settings pattern generation.
 
 = 1.0.8 =
 * Added multi-day click comparison analytics, trend visualizer, anti-spam deduplication, and auto log pruning.
-
-= 1.0.7 =
-* Fixed Redis object cache invalidation for custom default URLs.
-
-= 1.0.6 =
-* Added Live Preview Mode support inside Elementor Editor.
 
 = 1.0.5 =
 * Streamlined Area Mapping interface: Displaying explicit "Source URL (Web Saat Ini)" and "Destination URL (Web Tujuan)" columns.
