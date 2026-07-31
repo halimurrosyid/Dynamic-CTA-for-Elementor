@@ -36,6 +36,9 @@ class Area_Mapping_Page {
             wp_die(__('You do not have sufficient permissions to access this page.', 'dynamic-cta-elementor'));
         }
 
+        // Auto Ensure Database Columns exist on page load
+        DB::ensure_schema_up_to_date();
+
         $table = new Area_Mapping_Table();
         $table->prepare_items();
         ?>
@@ -222,6 +225,8 @@ class Area_Mapping_Page {
             wp_send_json_error(['message' => __('Unauthorized permission.', 'dynamic-cta-elementor')]);
         }
 
+        DB::ensure_schema_up_to_date();
+
         $id              = isset($_POST['mapping_id']) ? (int) $_POST['mapping_id'] : 0;
         $keyword         = isset($_POST['keyword']) ? sanitize_key($_POST['keyword']) : '';
         $area_name       = isset($_POST['area_name']) ? sanitize_text_field($_POST['area_name']) : '';
@@ -287,13 +292,13 @@ class Area_Mapping_Page {
             wp_send_json_error(['message' => __('Unauthorized permission.', 'dynamic-cta-elementor')]);
         }
 
+        global $wpdb;
+        $table = DB::get_mappings_table();
         $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
         if ($id <= 0) {
             wp_send_json_error(['message' => __('Invalid Mapping ID.', 'dynamic-cta-elementor')]);
         }
 
-        global $wpdb;
-        $table = DB::get_mappings_table();
         $wpdb->delete($table, ['id' => $id], ['%d']);
 
         CTA_Resolver::clear_cache();
@@ -324,6 +329,8 @@ class Area_Mapping_Page {
             wp_send_json_error(['message' => __('Unauthorized permission.', 'dynamic-cta-elementor')]);
         }
 
+        DB::ensure_schema_up_to_date();
+
         $sitemap_url = isset($_POST['sitemap_url']) ? esc_url_raw($_POST['sitemap_url']) : '';
         if (empty($sitemap_url)) {
             wp_send_json_error(['message' => __('Please enter a valid Destination Sitemap URL.', 'dynamic-cta-elementor')]);
@@ -336,10 +343,9 @@ class Area_Mapping_Page {
         }
 
         $message = sprintf(
-            __('Destination Sitemap Import Complete! Total URLs scanned: %d. New mappings inserted: %d. Updated existing: %d.', 'dynamic-cta-elementor'),
+            __('Destination Sitemap Import Complete! Total URLs scanned: %d. Mappings processed/inserted: %d.', 'dynamic-cta-elementor'),
             $result['total_scanned'],
-            $result['inserted'],
-            $result['updated']
+            $result['inserted'] + $result['updated']
         );
 
         wp_send_json_success(['message' => $message]);
@@ -354,6 +360,8 @@ class Area_Mapping_Page {
         if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => __('Unauthorized permission.', 'dynamic-cta-elementor')]);
         }
+
+        DB::ensure_schema_up_to_date();
 
         if (empty($_FILES['csv_file']['tmp_name'])) {
             wp_send_json_error(['message' => __('No file uploaded.', 'dynamic-cta-elementor')]);
@@ -387,33 +395,17 @@ class Area_Mapping_Page {
                 continue;
             }
 
-            $existing = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$table} WHERE keyword = %s", $keyword));
-            if ($existing) {
-                $wpdb->update(
-                    $table,
-                    [
-                        'area_name'       => $area_name,
-                        'source_url'      => $source_url,
-                        'destination_url' => $destination_url,
-                    ],
-                    ['id' => $existing],
-                    ['%s', '%s', '%s'],
-                    ['%d']
-                );
-                $imported++;
-            } else {
-                $wpdb->insert(
-                    $table,
-                    [
-                        'keyword'         => $keyword,
-                        'area_name'       => $area_name,
-                        'source_url'      => $source_url,
-                        'destination_url' => $destination_url,
-                    ],
-                    ['%s', '%s', '%s', '%s']
-                );
-                $imported++;
-            }
+            $wpdb->replace(
+                $table,
+                [
+                    'keyword'         => $keyword,
+                    'area_name'       => $area_name,
+                    'source_url'      => $source_url,
+                    'destination_url' => $destination_url,
+                ],
+                ['%s', '%s', '%s', '%s']
+            );
+            $imported++;
         }
 
         fclose($handle);
@@ -437,6 +429,8 @@ class Area_Mapping_Page {
         }
 
         check_admin_referer('dynamic_cta_export_nonce');
+
+        DB::ensure_schema_up_to_date();
 
         global $wpdb;
         $table = DB::get_mappings_table();

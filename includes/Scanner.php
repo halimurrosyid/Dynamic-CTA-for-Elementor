@@ -80,6 +80,8 @@ class Scanner {
      * @return array
      */
     public static function import_destination_sitemap(string $sitemap_url): array {
+        DB::ensure_schema_up_to_date();
+
         if (empty($sitemap_url) || !filter_var($sitemap_url, FILTER_VALIDATE_URL)) {
             return ['error' => __('Invalid Destination Sitemap URL provided.', 'dynamic-cta-elementor')];
         }
@@ -133,32 +135,22 @@ class Scanner {
             // Find matching source URL on current website
             $source_url = self::find_matching_source_url($keyword);
 
-            if (isset($existing_map[$keyword])) {
-                $wpdb->update(
-                    $table,
-                    [
-                        'area_name'       => $area_name,
-                        'source_url'      => $source_url,
-                        'destination_url' => $destination_url,
-                    ],
-                    ['keyword' => $keyword],
-                    ['%s', '%s', '%s'],
-                    ['%s']
-                );
-                $updated_count++;
-            } else {
-                $result = $wpdb->insert(
-                    $table,
-                    [
-                        'keyword'         => $keyword,
-                        'area_name'       => $area_name,
-                        'source_url'      => $source_url,
-                        'destination_url' => $destination_url,
-                    ],
-                    ['%s', '%s', '%s', '%s']
-                );
+            // Use REPLACE INTO to guarantee insertion/update regardless of existing state
+            $result = $wpdb->replace(
+                $table,
+                [
+                    'keyword'         => $keyword,
+                    'area_name'       => $area_name,
+                    'source_url'      => $source_url,
+                    'destination_url' => $destination_url,
+                ],
+                ['%s', '%s', '%s', '%s']
+            );
 
-                if ($result) {
+            if ($result !== false) {
+                if (isset($existing_map[$keyword])) {
+                    $updated_count++;
+                } else {
                     $inserted_count++;
                     $existing_map[$keyword] = true;
                 }

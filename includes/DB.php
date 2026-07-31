@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class DB
- * Handles Database initialization, schema upgrades, and table operations.
+ * Handles Database initialization, automatic schema migration on updates, and table operations.
  */
 class DB {
 
@@ -48,7 +48,7 @@ class DB {
     }
 
     /**
-     * Create Database Tables & Run Schema Migrations
+     * Create Database Tables & Run Automatic Schema Migrations
      */
     public static function create_tables(): void {
         global $wpdb;
@@ -81,15 +81,30 @@ class DB {
             user_agent text DEFAULT NULL,
             PRIMARY KEY  (id),
             KEY post_id (post_id),
-            KEY click_date (click_date),
-            KEY area_name (area_name)
+            KEY click_date (click_date)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql_mappings);
         dbDelta($sql_clicks);
 
-        // Ensure source_url column exists if table was previously created
+        self::ensure_schema_up_to_date();
+    }
+
+    /**
+     * Ensures all database columns exist on plugin update without needing deactivation
+     */
+    public static function ensure_schema_up_to_date(): void {
+        global $wpdb;
+        $mappings_table = self::get_mappings_table();
+
+        // Check if mappings table exists first
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $mappings_table)) !== $mappings_table) {
+            self::create_tables();
+            return;
+        }
+
+        // Ensure source_url column exists
         $column = $wpdb->get_results("SHOW COLUMNS FROM {$mappings_table} LIKE 'source_url'");
         if (empty($column)) {
             $wpdb->query("ALTER TABLE {$mappings_table} ADD COLUMN source_url text DEFAULT NULL AFTER area_name");
