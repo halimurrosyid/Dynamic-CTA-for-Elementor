@@ -1,11 +1,11 @@
 === Dynamic CTA for Elementor ===
 Contributors: halimurrosyid
 Donate link: https://indahweb.com/
-Tags: elementor, dynamic tag, cta, migration, popup link, word boundary matching
+Tags: elementor, dynamic tag, cta, migration, popup link, sitemap xml importer
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,9 +17,11 @@ Universal area-based CTA link migration plugin for Elementor Pro. Dynamically ro
 
 == Changelog ==
 
+= 1.1.1 =
+* Fixed XML Sitemap Importer for custom sitemaps (e.g. `https://jasawifi.com/iconnet-sitemap.xml`) by adding Universal Regex `<loc>` extraction engine and smart area path segment fallbacks.
+
 = 1.1.0 =
-* Fixed Word Boundary & Substring Collision bug (e.g. `malang` inside `pemalang` or `kab-pekalongan` vs `pekalongan`).
-* Fixed Custom Area Mapping database priority over default settings pattern generation.
+* Fixed Word Boundary & Substring Collision bug (e.g. `malang` inside `pemalang`).
 
 = 1.0.8 =
 * Added multi-day click comparison analytics, trend visualizer, anti-spam deduplication, and auto log pruning.

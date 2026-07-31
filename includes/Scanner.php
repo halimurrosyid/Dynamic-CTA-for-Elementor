@@ -7,14 +7,19 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Scanner
- * Universal & High-Accuracy Area Scanner with Word-Boundary Collision Prevention.
+ * Universal & High-Accuracy Area Scanner with Universal XML Sitemap Parsing & Collision Prevention.
  */
 class Scanner {
 
     /**
-     * Comprehensive database of Indonesian cities, regencies, and major districts
+     * Comprehensive database of Indonesian cities, regencies, provinces, and major districts
      */
     private static array $indonesian_areas = [
+        // Provinces
+        'jawa-barat', 'jabar', 'jawa-tengah', 'jateng', 'jawa-timur', 'jatim', 'banten', 'diy', 'yogyakarta',
+        'bali', 'nusa-tenggara-barat', 'ntb', 'nusa-tenggara-timur', 'ntt', 'sumatera-utara', 'sumut',
+        'sumatera-selatan', 'sumsel', 'sumatera-barat', 'sumbar', 'riau', 'kepulauan-riau', 'kepri', 'lampung',
+
         // DKI Jakarta & Sub-districts
         'jakarta', 'jakarta-selatan', 'jakarta-barat', 'jakarta-timur', 'jakarta-utara', 'jakarta-pusat',
         'jaksel', 'jakbar', 'jaktim', 'jakut', 'jakpus', 'kebayoran', 'tebet', 'cilandak', 'jagakarsa',
@@ -36,10 +41,11 @@ class Scanner {
 
         // Central Java & DIY (Jawa Tengah & Yogyakarta)
         'semarang', 'kabupaten-semarang', 'kab-semarang', 'ungaran', 'solo', 'surakarta', 'yogyakarta', 'jogja', 'sleman',
-        'bantul', 'kulonprogo', 'gunungkidul', 'wates', 'wonosari', 'klaten', 'boyolali', 'sragen',
+        'bantul', 'kulonprogo', 'kulon-progo', 'gunungkidul', 'gunung-kidul', 'wates', 'wonosari', 'klaten', 'boyolali', 'sragen',
         'karanganyar', 'sukoharjo', 'wonogiri', 'magelang', 'mungkid', 'temanggung', 'wonosobo', 'purworejo',
-        'kebumen', 'banyumas', 'purwokerto', 'cilacap', 'banjarnegara', 'pekalongan', 'kab-pekalongan', 'kabupaten-pekalongan', 'batang', 'kendal',
-        'demak', 'kudus', 'jepara', 'pati', 'rembang', 'blora', 'grobogan', 'purwodadi', 'salatiga', 'pemalang',
+        'kebumen', 'banyumas', 'purwokerto', 'cilacap', 'banjarnegara', 'pekalongan', 'kab-pekalongan', 'kabupaten-pekalongan',
+        'tegal', 'kab-tegal', 'kabupaten-tegal', 'batang', 'kendal', 'demak', 'kudus', 'jepara', 'pati', 'rembang',
+        'blora', 'grobogan', 'purwodadi', 'salatiga', 'pemalang',
 
         // East Java (Jawa Timur)
         'surabaya', 'sidoarjo', 'gresik', 'malang', 'batu', 'kabupaten-malang', 'mojokerto', 'jombang',
@@ -104,6 +110,19 @@ class Scanner {
             }
 
             $matched_keyword = self::detect_area_from_string($path);
+
+            // Fallback: If path is e.g. /iconnet/jember/ or /area/jember/, use last segment if not generic
+            if (!$matched_keyword) {
+                $segments = array_values(array_filter(explode('/', $path)));
+                if (!empty($segments)) {
+                    $last_segment = sanitize_key(end($segments));
+                    $ignored_words = ['sitemap', 'category', 'tag', 'author', 'page', 'post', 'feed', 'rss'];
+                    if (!in_array($last_segment, $ignored_words, true) && strlen($last_segment) >= 3) {
+                        $matched_keyword = $last_segment;
+                    }
+                }
+            }
+
             if (!$matched_keyword) {
                 continue;
             }
@@ -181,21 +200,21 @@ class Scanner {
     }
 
     /**
-     * Recursively fetch URLs from XML Sitemap
+     * Universal Sitemap URL Extractor (Supports Sub-sitemaps, RankMath, Yoast, and Namespaced XML)
      *
      * @param string $url
      * @param int $depth
      * @return array
      */
-    private static function extract_urls_from_sitemap(string $url, int $depth = 0): array {
+    public static function extract_urls_from_sitemap(string $url, int $depth = 0): array {
         if ($depth > 3) {
             return [];
         }
 
         $response = wp_remote_get($url, [
-            'timeout'    => 15,
+            'timeout'    => 20,
             'sslverify'  => false,
-            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WordPress DynamicCTA/1.0',
+            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WordPress DynamicCTA/1.1',
         ]);
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
@@ -209,35 +228,24 @@ class Scanner {
 
         $extracted_urls = [];
 
-        libxml_use_internal_errors(true);
-        $xml = simplexml_load_string($xml_content);
-        if ($xml === false) {
-            preg_match_all('/<loc>(https?:\/\/[^<]+)<\/loc>/i', $xml_content, $matches);
-            if (!empty($matches[1])) {
-                return array_unique($matches[1]);
-            }
-            return [];
-        }
-
-        if ($xml->getName() === 'sitemapindex') {
-            foreach ($xml->sitemap as $sub_sitemap) {
-                $sub_url = (string) $sub_sitemap->loc;
-                if (!empty($sub_url)) {
-                    $child_urls = self::extract_urls_from_sitemap($sub_url, $depth + 1);
-                    $extracted_urls = array_merge($extracted_urls, $child_urls);
-                }
-            }
-        } elseif ($xml->getName() === 'urlset') {
-            foreach ($xml->url as $url_entry) {
-                $loc = (string) $url_entry->loc;
-                if (!empty($loc)) {
-                    $extracted_urls[] = $loc;
+        // 1. High-speed Universal Regex Extraction for <loc> tags
+        preg_match_all('/<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/i', $xml_content, $matches);
+        if (!empty($matches[1])) {
+            foreach ($matches[1] as $loc_url) {
+                $loc_url = trim($loc_url);
+                // Check if this loc URL is a sub-sitemap XML file
+                if (preg_match('/\.xml(\?.*)?$/i', $loc_url) || str_contains($loc_url, 'sitemap')) {
+                    if ($loc_url !== $url) { // Prevent infinite recursion
+                        $sub_urls = self::extract_urls_from_sitemap($loc_url, $depth + 1);
+                        $extracted_urls = array_merge($extracted_urls, $sub_urls);
+                    }
+                } else {
+                    $extracted_urls[] = $loc_url;
                 }
             }
         }
 
-        libxml_clear_errors();
-        return array_unique($extracted_urls);
+        return array_values(array_unique($extracted_urls));
     }
 
     /**
@@ -252,11 +260,11 @@ class Scanner {
         }
 
         $subject = strtolower(trim($subject, '/'));
-        $parts = explode('/', $subject);
+        $parts = array_values(array_filter(explode('/', $subject)));
         $last_segment = end($parts);
 
         // 1. Exact match on path segment (e.g. 'malang' or 'pemalang')
-        if (in_array($last_segment, self::$indonesian_areas, true)) {
+        if ($last_segment && in_array($last_segment, self::$indonesian_areas, true)) {
             return $last_segment;
         }
 
