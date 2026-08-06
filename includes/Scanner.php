@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
 
 /**
  * Class Scanner
- * Universal & High-Accuracy Area Scanner with Title/Slug-Only Matching for Source URLs.
+ * Universal & High-Accuracy Area Scanner with Universal XML Sitemap Parsing & Collision Prevention.
  */
 class Scanner {
 
@@ -88,7 +88,7 @@ class Scanner {
 
         $urls = self::extract_urls_from_sitemap($sitemap_url);
         if (empty($urls)) {
-            return ['error' => __('No destination URLs could be retrieved from the specified Sitemap URL.', 'dynamic-cta-elementor')];
+            return ['error' => __('No destination URLs could be retrieved from the specified Sitemap URL. Please verify the URL is public and accessible.', 'dynamic-cta-elementor')];
         }
 
         global $wpdb;
@@ -107,18 +107,21 @@ class Scanner {
         foreach ($urls as $destination_url) {
             $destination_url = esc_url_raw(trim($destination_url));
             $path = trim(wp_parse_url($destination_url, PHP_URL_PATH) ?? '', '/');
-            if (empty($path)) {
+            $query = wp_parse_url($destination_url, PHP_URL_QUERY) ?? '';
+            $subject = $path . ($query ? '/' . $query : '');
+
+            if (empty($subject)) {
                 continue;
             }
 
-            $matched_keyword = self::detect_area_from_string($path);
+            $matched_keyword = self::detect_area_from_string($subject);
 
             // Fallback: If path is e.g. /iconnet/jember/ or /area/jember/, use last segment if not generic
-            if (!$matched_keyword) {
+            if (!$matched_keyword && !empty($path)) {
                 $segments = array_values(array_filter(explode('/', $path)));
                 if (!empty($segments)) {
                     $last_segment = sanitize_key(end($segments));
-                    $ignored_words = ['sitemap', 'category', 'tag', 'author', 'page', 'post', 'feed', 'rss'];
+                    $ignored_words = ['sitemap', 'category', 'tag', 'author', 'page', 'post', 'feed', 'rss', 'index', 'xml'];
                     if (!in_array($last_segment, $ignored_words, true) && strlen($last_segment) >= 3) {
                         $matched_keyword = $last_segment;
                     }
@@ -211,7 +214,7 @@ class Scanner {
     }
 
     /**
-     * Universal Sitemap URL Extractor (Supports Sub-sitemaps, RankMath, Yoast, and Namespaced XML)
+     * Universal Sitemap URL Extractor (Supports CDATA, HTML Entities, Sub-sitemaps, RankMath, Yoast, and Namespaced XML)
      *
      * @param string $url
      * @param int $depth
@@ -222,13 +225,19 @@ class Scanner {
             return [];
         }
 
+        $url = html_entity_decode(trim($url));
+
         $response = wp_remote_get($url, [
-            'timeout'    => 20,
-            'sslverify'  => false,
-            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WordPress DynamicCTA/1.1',
+            'timeout'     => 25,
+            'sslverify'   => false,
+            'redirection' => 5,
+            'headers'     => [
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            ],
+            'user-agent'  => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         ]);
 
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) < 200 || wp_remote_retrieve_response_code($response) >= 400) {
             return [];
         }
 
@@ -239,16 +248,26 @@ class Scanner {
 
         $extracted_urls = [];
 
-        // 1. High-speed Universal Regex Extraction for <loc> tags
-        preg_match_all('/<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/i', $xml_content, $matches);
+        // Regex supporting CDATA, whitespace, and HTML entities inside <loc>
+        $pattern = '/<loc>\s*(?:<!\[CDATA\[)?\s*(https?:\/\/[^\]<\s]+)\s*(?:\]\]>)?\s*<\/loc>/i';
+        preg_match_all($pattern, $xml_content, $matches);
+
         if (!empty($matches[1])) {
             foreach ($matches[1] as $loc_url) {
-                $loc_url = trim($loc_url);
+                $loc_url = html_entity_decode(trim($loc_url));
+
                 // Check if this loc URL is a sub-sitemap XML file
-                if (preg_match('/\.xml(\?.*)?$/i', $loc_url) || str_contains($loc_url, 'sitemap')) {
-                    if ($loc_url !== $url) { // Prevent infinite recursion
-                        $sub_urls = self::extract_urls_from_sitemap($loc_url, $depth + 1);
+                $is_xml_sub = (bool) preg_match('/\.xml(\?.*)?$/i', $loc_url);
+                $is_sitemap_path = str_contains(strtolower($loc_url), 'sitemap');
+
+                if (($is_xml_sub || $is_sitemap_path) && $loc_url !== $url) {
+                    $sub_urls = self::extract_urls_from_sitemap($loc_url, $depth + 1);
+                    if (!empty($sub_urls)) {
                         $extracted_urls = array_merge($extracted_urls, $sub_urls);
+                    } else {
+                        if (!$is_xml_sub) {
+                            $extracted_urls[] = $loc_url;
+                        }
                     }
                 } else {
                     $extracted_urls[] = $loc_url;

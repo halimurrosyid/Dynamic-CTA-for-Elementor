@@ -343,9 +343,10 @@ class Area_Mapping_Page {
         }
 
         $message = sprintf(
-            __('Destination Sitemap Import Complete! Total URLs scanned: %d. Mappings processed/inserted: %d.', 'dynamic-cta-elementor'),
+            __('Destination Sitemap Import Complete! Total URLs scanned: %d. New mappings inserted: %d. Existing mappings updated: %d.', 'dynamic-cta-elementor'),
             $result['total_scanned'],
-            $result['inserted'] + $result['updated']
+            $result['inserted'],
+            $result['updated']
         );
 
         wp_send_json_success(['message' => $message]);

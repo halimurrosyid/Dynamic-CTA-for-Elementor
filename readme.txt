@@ -1,11 +1,11 @@
 === Dynamic CTA for Elementor ===
 Contributors: halimurrosyid
 Donate link: https://indahweb.com/
-Tags: elementor, dynamic tag, cta, migration, popup link, title slug matching
+Tags: elementor, dynamic tag, cta, migration, popup link, sitemap import resilience
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.1
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,6 +16,9 @@ Universal area-based CTA link migration plugin for Elementor Pro. Dynamically ro
 "Dynamic CTA for Elementor" is a universal WordPress plugin created by **Mujaddid Halimurrosyid** ([indahweb.com](https://indahweb.com/)) designed to seamlessly migrate traffic from legacy articles to targeted area landing pages using **ONLY ONE Elementor Popup**.
 
 == Changelog ==
+
+= 1.1.4 =
+* Enhanced Sitemap Extractor Resilience: Added CDATA support, HTML entity decoding (`&amp;`), modern User-Agent bypass for Cloudflare, redirect follow, and detailed sitemap import reporting.
 
 = 1.1.3 =
 * Enhanced Source URL matching: Post detection is now strictly scoped to Post Title and Post Slug (ignores body content to prevent generic article misassignments).
